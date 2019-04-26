@@ -1,0 +1,16 @@
+{
+    "name": "python2mips",
+    "version": "0.0.1",
+    "description": "converts python src code to mips",
+    "main": "",
+    "author": "Shageenderan Sapai",
+    "scripts": {
+        "start": "cd src && pegjs pythonParser.pegjs && tsc main.ts && node main.js",
+        "dev": ""
+    },
+    "dependencies": {
+        "@types/node": "^11.13.6",
+        "pegjs": "^0.10.0",
+        "typescript": "^3.4.4"
+    }
+}

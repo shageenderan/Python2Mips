@@ -1,0 +1,9 @@
+1) Parser
+ [DONE] Print: add support to accept multiple arguments: print("testVal", val)
+ [DONE] Input: add support for int(input())
+ [DONE] Add suport for string concatenation, i.e. print("hello " + " world")
+ [DONE] Add variable assignment support, i.e. x = 10
+ [DONE] Add support for arithmetic operations
+ - Add support for casting values i.e. x = 10; str(x)
+ - Add function to reduce print/ input args. i.e. print("hello" + "world") reduces to print("hello world") or print(3 + 3) reduces to print(6)
+
