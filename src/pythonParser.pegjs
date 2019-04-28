@@ -28,9 +28,10 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
     return tail.reduce(function(result, element) {
       return {
         token: "artihmeticExpression",
-        operator: element[1],
+        properties: {        operator: element[1],
         left: result,
-        right: element[3]
+        right: element[3]},
+
       };
     }, head);
   }
@@ -62,11 +63,11 @@ BinaryExpression
  = expr:ArtihmeticExpression { functionStack.push(expr)}
 
 VariableAssignmentStatement
- = variable:(Variable) _ "=" _ "int" _ "(" _ value:(ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
+ = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
  / VariableAssignment
 
 VariableAssignment
- = variable:(Variable) _ "=" _ value:ArtihmeticExpression  { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
+ = variable:(Variable) _ "=" _ value:ArtihmeticExpression  { value.value ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
  / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral/Variable) { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
  / variable:(Variable) _ "=" _ value:Input { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
 
@@ -88,16 +89,16 @@ IOArgs
  / _ !(","_) {return { type: null};}
 
 Print
- = PrintToken _ "(" _ prompt:(IOArgs) _ tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, value: " " + moreArgs.value} })* _ ")" 
+ = PrintToken _ "(" _ prompt:(ArtihmeticExpression/ IOArgs) _ tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, spaced:true} })* _ ")" 
  	{return {token: "print", properties:{prompt: [prompt, ...tail]}} }
 
 Input
- = name:$(Variable) _ "=" _  "int" _ "(" _ prompt:InputStatement _ ")" _ { return {token: "input", properties: {prompt, variable: {name, type:"int"}}}}
- / name:$(Variable) _ "=" _ prompt:InputStatement { return {token: "input",  properties: {prompt, variable: {name, type:"string"}}}}
- / prompt:InputStatement { return {token: "input", prompt}}
+ = "int" _ "(" _ prompt:InputStatement _ ")" _ { return prompt} //may want to change to variable-int
+ / prompt:InputStatement { return prompt}
 
 InputStatement
- = InputToken _ "(" _ prompt:(IOArgs) _ ")" {return prompt}
+ = InputToken _ "(" _ prompt:(Variable/ArtihmeticExpression/ IOArgs) _  tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, value: " "} })* _ ")"
+ 	{return {token: "input", properties:{prompt: [prompt, ...tail]}} }
 
 Comment
  = value:$("#" _ ((VariableName/[/.,';?><":()0-9]) _)* _) {functionStack.push({token: "comment", value: value.slice(1)})}
@@ -108,10 +109,10 @@ Literal
  
 StringLiteral "string"
   = '"' chars:DoubleStringCharacter* '"' {
-      {addStringToData(chars.join("")); return {type:"string", addr: `str${i-1}`}};
+      {addStringToData(chars.join("")); return {type:"string", value: `str${i-1}`}};
     }
   / "'" chars:SingleStringCharacter* "'" {
-      {addStringToData(chars.join("")); return {type:"string", addr: `str${i-1}`}};
+      {addStringToData(chars.join("")); return {type:"strinag", value: `str${i-1}`}};
     }
 
 DoubleStringCharacter
@@ -193,7 +194,7 @@ ReservedWord
 
 //taken from javascript parser
 Variable
-  = !ReservedWord name:VariableName {addVariableToData(name.value);  return {type:name.type, addr: name.value}}
+  = !ReservedWord name:VariableName {addVariableToData(name.value);  return {type:name.type, value: name.value}}
 
 VariableName "Variable"
   = head:VariableStart tail:VariablePart* {
@@ -295,7 +296,7 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 // Accepts expressions like "2 * (3 + 4)" and computes their value.
 
 ArtihmeticExpression
- = value:ArtihmeticStart {return value}
+ = value:ArtihmeticStart {return value.type ? value : {...value, type:"artihmeticExpression"}}
 
 ArtihmeticStart
   = head:ArtihmeticTerm tail:(_ ("+" / "-") _ ArtihmeticTerm)* {
