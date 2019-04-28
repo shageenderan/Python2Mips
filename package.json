@@ -6,11 +6,19 @@
     "author": "Shageenderan Sapai",
     "scripts": {
         "start": "cd src && pegjs pythonParser.pegjs && tsc main.ts && node main.js",
+        "test": "mocha -r ts-node/register src/**/*.spec.ts",
         "dev": ""
     },
     "dependencies": {
         "@types/node": "^11.13.6",
         "pegjs": "^0.10.0",
         "typescript": "^3.4.4"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.1.7",
+        "@types/mocha": "^5.2.6",
+        "chai": "^4.2.0",
+        "mocha": "^6.1.4",
+        "ts-node": "^8.1.0"
     }
 }
