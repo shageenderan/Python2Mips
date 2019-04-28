@@ -13,8 +13,15 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
   }
   
   function addStringToData(str){
-  	dataStack.push(`str${i}: \t.asciiz\t${str}`)
-    i++;
+  	const strIndex = dataStack.findIndex(elem => elem.slice(-1 * str.length) === str )
+  	if (strIndex === -1){ //elem not in dataStack
+      dataStack.push(`str${i}: \t.asciiz\t${str}`)
+      i++;
+      return i - 1;
+    }
+  	else{ //elem in dataStack
+    	return strIndex
+    }
   }
   
   function addVariableToData(str){
@@ -109,10 +116,10 @@ Literal
  
 StringLiteral "string"
   = '"' chars:DoubleStringCharacter* '"' {
-      {addStringToData(chars.join("")); return {type:"string", value: `str${i-1}`}};
+      {let index = addStringToData(chars.join("")); return {type:"string", value: `str${index}`}};
     }
   / "'" chars:SingleStringCharacter* "'" {
-      {addStringToData(chars.join("")); return {type:"strinag", value: `str${i-1}`}};
+      {let index = addStringToData(chars.join("")); return {type:"strinag", value: `str${index}`}};
     }
 
 DoubleStringCharacter

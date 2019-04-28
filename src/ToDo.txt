@@ -4,6 +4,7 @@
  [DONE] Add suport for string concatenation, i.e. print("hello " + " world")
  [DONE] Add variable assignment support, i.e. x = 10
  [DONE] Add support for arithmetic operations
+ [DONE] Fix parser to only add a string to dataStack if its not already in dataStack
  - Add support for casting values i.e. x = 10; str(x)
  - Add function to reduce print/ input args. i.e. print("hello" + "world") reduces to print("hello world") or print(3 + 3) reduces to print(6)
 
