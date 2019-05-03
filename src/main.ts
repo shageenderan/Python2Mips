@@ -3,7 +3,8 @@ import Translate from './translator';
 import { PrintToken, ArtihmeticExpressionToken, InputToken, VariableAssignmentToken } from './objects/tokens';
 
 const testString = `x = 2;\nprint(2+2)\ninput("type something:")`
-const testPrint = `print(2)\nprint("Hello")\nprint("hello", "world")\nprint(2+2)`
+const testPrint = `print(2)\nprint("Hello")\nprint("hello", "world")\nprint(2+2)\nprint(9*30/5 + 32)`
+const testAr = `print(9*30/5 + 32)`
 
 export interface textParams {
     token: PrintToken | InputToken | ArtihmeticExpressionToken | VariableAssignmentToken
@@ -30,6 +31,10 @@ try {
     })
     console.log(sampleOutput.data)
     console.log(test)
+    console.log(".data")
+    sampleOutput.data.map(elem => console.log(elem));
+    console.log("\n.text\n")
+    test.forEach(elem => console.log(elem));
 }
 catch (e)
 {

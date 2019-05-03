@@ -12,10 +12,25 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
     return value !== null ? value : [];
   }
   
+  function assignValueToVariable(variable, type, value){
+  	const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
+    console.log("index", variableIndex)
+    let newVal = "noTypeYet"
+    if(variableIndex !== -1){
+    	newVal =  
+        type ==="string" ? `${variable}: \t.asciiz\t"${value}" //{enter a more exact space for variable: '${variable}'}` :
+      	type ==="int" ? `${variable}: \t.word\t${value ? value : 0} //{enter a more exact value for variable: '${variable}'}` :
+        "noTypeYet"
+    }
+    if(newVal !== "noTypeYet"){
+    	dataStack[variableIndex] = newVal
+    }
+  }
+  
   function addStringToData(str){
   	const strIndex = dataStack.findIndex(elem => elem.slice(-1 * str.length) === str )
   	if (strIndex === -1){ //elem not in dataStack
-      dataStack.push(`str${i}: \t.asciiz\t${str}`)
+      dataStack.push(`str${i}: \t.asciiz\t"${str}"`)
       i++;
       return i - 1;
     }
@@ -24,11 +39,14 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
     }
   }
   
-  function addVariableToData(str){
+  function addVariableToData(str, type, value){
   	//switch on str value
-    console.log(str)
-    dataStack.find(elem => elem.slice(0, str.length) === str) ? "" :
-  	dataStack.push(`${str}: \t.space\t60 //{enter a more exact value for variable: '${str}'}`)
+    console.log(str, type)
+    const found = dataStack.find(elem => elem.slice(0, str.length) === str)
+    if (!found){
+      dataStack.push(`${str}: \t.space\t60 //{enter a more exact space for variable: '${str}'}`)
+    }
+  	
   }
   
   function buildArtihmeticExpression(head, tail) {
@@ -70,13 +88,13 @@ BinaryExpression
  = expr:ArtihmeticExpression { functionStack.push(expr)}
 
 VariableAssignmentStatement
- = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
+ = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" { assignValueToVariable(variable.value, value.type, value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
  / VariableAssignment
 
 VariableAssignment
- = variable:(Variable) _ "=" _ value:ArtihmeticExpression  { value.value ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral/Variable) { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:Input { functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
+ = variable:(Variable) _ "=" _ value:ArtihmeticExpression  {assignValueToVariable(variable.value, value.type, value.value); value.value ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
+ / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral/Variable) {assignValueToVariable(variable.value, value.type, value.value);  functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
+ / variable:(Variable) _ "=" _ value:Input {assignValueToVariable(variable.value, value.type, value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
 
 //FunctionDeclaration
  //= "function" {return "func"}
@@ -86,12 +104,12 @@ Function
  = val:IOFunction {functionStack.push(val)}
  
 IOFunction
- = Print
- / Input
+ = Print 
+ / Input 
 
 IOArgs
  = Variable
- / StringLiteral
+ / str:StringLiteral {let index = addStringToData(str.value); return {...str, value: `str${index}`}}
  / IntegerLiteral
  / _ !(","_) {return { type: null};}
 
@@ -116,10 +134,10 @@ Literal
  
 StringLiteral "string"
   = '"' chars:DoubleStringCharacter* '"' {
-      {let index = addStringToData(chars.join("")); return {type:"string", value: `str${index}`}};
+      {return {type:"string", value: chars.join("")}};
     }
   / "'" chars:SingleStringCharacter* "'" {
-      {let index = addStringToData(chars.join("")); return {type:"strinag", value: `str${index}`}};
+      {return {type:"string", value: chars.join("")}};
     }
 
 DoubleStringCharacter
@@ -201,7 +219,7 @@ ReservedWord
 
 //taken from javascript parser
 Variable
-  = !ReservedWord name:VariableName {addVariableToData(name.value);  return {type:name.type, value: name.value}}
+  = !ReservedWord name:VariableName {addVariableToData(name.value, name.type);  return {type:name.type, value: name.value}}
 
 VariableName "Variable"
   = head:VariableStart tail:VariablePart* {
