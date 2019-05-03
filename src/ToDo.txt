@@ -1,4 +1,4 @@
-1) Parser
+To Do
  [DONE] Print: add support to accept multiple arguments: print("testVal", val)
  [DONE] Input: add support for int(input())
  [DONE] Add suport for string concatenation, i.e. print("hello " + " world")
@@ -7,12 +7,18 @@
  [DONE] Fix parser to only add a string to dataStack if its not already in dataStack
  [DONE] Update parser to switch between storing string or .space
 
- - Convert Arthimetic print tokens
-    -[BUG] Fix translate not handling {left: previous, right: next} properly. Some test cases to reproduce error:
+ [DONE] Convert Arthimetic print tokens
+    -[FIXED] Fix translate not handling {left: previous, right: next} properly. Some test cases to reproduce error:
         print((2*2 + 3*4) * 45/50)
         print(45/50 * (2*2 + 3*4)) - results in infinite loop
         Has to do with how {right: next} is handled.
+ [DONE] Add support for casting values i.e. x = 10; str(x)
+ 
+Important
+ - Translate input statements
  - Differentiate between integer and string variables. 
- - Add support for casting values i.e. x = 10; str(x)
- - Add function to reduce print/ input args. i.e. print("hello" + "world") reduces to print("hello world") or print(3 + 3) reduces to print(6)
+ 
 
+Small/Optional
+ - Add function to reduce print/ input args. i.e. print("hello" + "world") reduces to print("hello world") or print(3 + 3) 
+   reduces to print(6)

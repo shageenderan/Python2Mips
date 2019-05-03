@@ -6,7 +6,7 @@
     "author": "Shageenderan Sapai",
     "scripts": {
         "start": "cd src && pegjs pythonParser.pegjs && tsc main.ts && node main.js",
-        "test": "mocha -r ts-node/register src/**/*.spec.ts",
+        "test": "cd src && pegjs pythonParser.pegjs && tsc main.ts && cd .. && mocha -r ts-node/register src/**/*.spec.ts",
         "dev": ""
     },
     "dependencies": {
