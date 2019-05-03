@@ -35,6 +35,7 @@ try {
     sampleOutput.data.map(elem => console.log(elem));
     console.log("\n.text\n")
     test.forEach(elem => console.log(elem));
+    console.log("addi $v0, $0, 10\nsyscall\n") //exit)
 }
 catch (e)
 {

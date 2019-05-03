@@ -22,7 +22,7 @@ export default class Translate {
                 mipsCode += "//some other code\n";
                 break;
         }
-        return mipsCode
+        return mipsCode;
     }
 
     private _translatePrint = (token: PrintToken) => {
