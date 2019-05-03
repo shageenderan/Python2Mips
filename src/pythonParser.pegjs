@@ -28,6 +28,7 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
   }
   
   function addStringToData(str){
+  console.log("sliced", str)
   	const strIndex = dataStack.findIndex(elem => elem.slice(-1 * str.length) === str )
   	if (strIndex === -1){ //elem not in dataStack
       dataStack.push(`str${i}: \t.asciiz\t"${str}"`)
@@ -108,10 +109,21 @@ IOFunction
  / Input 
 
 IOArgs
- = Variable
+ = CastedArgs
+ / Variable
  / str:StringLiteral {let index = addStringToData(str.value); return {...str, value: `str${index}`}}
  / IntegerLiteral
  / _ !(","_) {return { type: null};}
+
+CastedArgs
+ = StringIOArgs
+ / IntIOArgs
+
+StringIOArgs
+ = "str" _ "(" _ arg:IOArgs _ ")" {return arg}
+
+IntIOArgs
+ = "int" _ "(" _ arg:IOArgs _ ")" {return arg}
 
 Print
  = PrintToken _ "(" _ prompt:(ArtihmeticExpression/ IOArgs) _ tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, spaced:true} })* _ ")" 
