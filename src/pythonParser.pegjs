@@ -130,11 +130,12 @@ Print
  	{return {token: "print", properties:{prompt: [prompt, ...tail]}} }
 
 Input
- = "int" _ "(" _ prompt:InputStatement _ ")" _ { return prompt} //may want to change to variable-int
- / prompt:InputStatement { return prompt}
+ = "int" _ "(" _ prompt:InputStatement _ ")" _ { return {...prompt, type: "int"}} //may want to change to variable-int
+ / "str" _ "(" _ prompt:InputStatement _ ")" _ { return {...prompt, type: "string"}}
+ / prompt:InputStatement { return {...prompt, type: null}}
 
 InputStatement
- = InputToken _ "(" _ prompt:(Variable/ArtihmeticExpression/ IOArgs) _  tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, value: " "} })* _ ")"
+ = InputToken _ "(" _ prompt:(Variable/ArtihmeticExpression/ IOArgs) _  tail:("+" _ moreArgs:IOArgs _ {return moreArgs })* _ ")"
  	{return {token: "input", properties:{prompt: [prompt, ...tail]}} }
 
 Comment

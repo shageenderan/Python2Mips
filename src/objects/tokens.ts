@@ -27,6 +27,7 @@ export class PrintToken {
 
 export class InputToken {
     token: string;
+    type: "int" | "string" | null;
     properties: {
         prompt: Array< DataObject | ArtihmeticExpressionToken >;
     }

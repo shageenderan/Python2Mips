@@ -16,7 +16,10 @@ export default class Translate {
         let mipsCode = ""
         switch (pyCode.token) {
             case "print":
-                mipsCode += this._translatePrint(pyCode as PrintToken)
+                mipsCode += this.translatePrint(pyCode as PrintToken);
+                break;
+            case "input":
+                mipsCode += this.translateInput(pyCode as InputToken);
                 break;
             default:
                 mipsCode += "//some other code\n";
@@ -25,38 +28,70 @@ export default class Translate {
         return mipsCode;
     }
 
-    private _translatePrint = (token: PrintToken) => {
+    /** Translates print tokens to mips code */
+    public translatePrint(token: PrintToken): string {
         let printMips = ""
-        token.properties.prompt.forEach(elem => {
-            if ((elem as DataObject).spaced) {
-                printMips += `la $a0, 32\naddi $v0, $0, 11\nsyscall\n` //printing space
-            }
-            switch (elem.type) {
-                case "string":
-                    printMips += `la $a0, ${(elem as DataObject).value}\naddi $v0, $0, 4\nsyscall\n`
-                    break;
-                case "int":
-                    printMips += `addi $a0 $0 ${(elem as DataObject).value}\naddi $v0, $0, 1\nsyscall\n` //printing single integer
-                    break;
-                case "variable":
-                    printMips += `la $a0, ${(elem as DataObject).value}\naddi $v0, $0, 4\nsyscall\n` //printing single variable
-                    break;
-                case "artihmeticExpression":
-                    //compute arthimetic expression
-                    printMips += this._translateArithmetic(elem as ArtihmeticExpressionToken)
-                    printMips += `add $a0 $0 $t0\naddi $v0, $0, 1\nsyscall\n` //printing integer
-                    break;
+        token.properties.prompt.forEach(prompt => {
+            printMips += this._translatePrintPrompts(prompt);
+        })
+        //print newline after a print statement
+        printMips += `#printing newline\naddi $a0, $0, 0xA\t#ascii code for LF(newline), if you have any trouble try 0xD for CR.\naddi $v0, $0, 11\t#syscall 11 prints the lower 8 bits of $a0 as an ascii character.\nsyscall\n`
+        return printMips;
+    }
 
-                default:
+    /** Translates all prompts(in a single print statement) into mips */
+    private _translatePrintPrompts(printToken: DataObject | ArtihmeticExpressionToken) {
+        let mipsCode = "";
+        if ((printToken as DataObject).spaced) {
+            mipsCode += `la $a0, 32\naddi $v0, $0, 11\nsyscall\n` //printing space
+        }
+        switch (printToken.type) {
+            case "string":
+                mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n`
+                break;
+            case "int":
+                mipsCode += `addi $a0 $0 ${(printToken as DataObject).value}\naddi $v0, $0, 1\nsyscall\n` //printing single integer
+                break;
+            case "variable":
+                mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n` //printing single variable
+                break;
+            case "artihmeticExpression":
+                //compute arthimetic expression
+                mipsCode += this.translateArithmetic(printToken as ArtihmeticExpressionToken)
+                mipsCode += `add $a0 $0 $t0\naddi $v0, $0, 1\nsyscall\n` //printing integer
+                break;
+
+            default:
+                break;
+        }
+        //syscallFunc += `la $a0, ${properties.prompt.}\naddi $v0, $0, 4\nsyscall\n`;
+        return mipsCode
+
+    }
+
+    /** Translates input tokens to mips code */
+    public translateInput(token: InputToken): string {
+        let inputMips = "";
+        token.properties.prompt.forEach(prompt => {
+            inputMips += this._translatePrintPrompts(prompt);
+            console.log("type", token.type)
+            switch (token.type) {
+                case "int":
+                    inputMips += `addi $v0, $0,5\t#reading an int but not assigning it anywhere\nsyscall\n`
+                    break;
+                case "string":
+                    inputMips += `la $a0, ENTER_STR_ADDRESS\t#reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
+                    break;
+                case null:
+                    inputMips += `la $a0, ENTER_STR_ADDRESS\t#reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
                     break;
             }
         })
-        //syscallFunc += `la $a0, ${properties.prompt.}\naddi $v0, $0, 4\nsyscall\n`;
-        printMips += `#printing newline\naddi $a0, $0, 0xA #ascii code for LF(newline), if you have any trouble try 0xD for CR.\naddi $v0, $0, 11 #syscall 11 prints the lower 8 bits of $a0 as an ascii character.\nsyscall\n`
-        return printMips
+        return inputMips;
     }
 
-    private _translateArithmetic(root: ArtihmeticExpressionToken) {
+    /** Translates arithemetic tokens to mips code */
+    public translateArithmetic(root: ArtihmeticExpressionToken) {
         const operations = this._postOrderArithmetic(root);
         let mipsCode: Array<parsedMipsArithmetic> = []
         let prev = null, current = 0, next = null, usedRegisters = {}, currentRegister = -1;
@@ -99,6 +134,7 @@ export default class Translate {
         return mipsCode.map(elem => this._translateArithmeticOperation(elem, availRegisters[currentRegister + 2])).join("");
     }
 
+    /** Translates a single arithmetic operation to mips code */
     private _translateArithmeticOperation(mipsOperation: parsedMipsArithmetic, recentRegister?: string) {
         let mipsCode = ""
         const freeRegister = !mipsOperation.overwriteRegister ? recentRegister : mipsOperation.finalRegister === "$t0" ? "$t1" : "$t0";
@@ -144,7 +180,7 @@ export default class Translate {
                 mipsCode += `${operatorString} ${mipsOperation.finalRegister}, ${mipsOperation.finalRegister}, ${freeRegister}\n`
             }
         }
-        else if (mipsOperation.operator === "*" || mipsOperation.operator === "/"){
+        else if (mipsOperation.operator === "*" || mipsOperation.operator === "/") {
             //left
             if (mipsOperation.left.type === "variable") {
                 mipsCode += `lw ${mipsOperation.finalRegister}, ${mipsOperation.left.value}\n`
