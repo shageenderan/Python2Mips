@@ -13,18 +13,30 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
   }
   
   function assignValueToVariable(variable, type, value){
-  	const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
-    console.log("index", variableIndex)
+  	console.log("params", variable, type, value)
     let newVal = "noTypeYet"
-    if(variableIndex !== -1){
-    	newVal =  
-        type ==="string" ? `${variable}: \t.asciiz\t"${value}" //{enter a more exact space for variable: '${variable}'}` :
-      	type ==="int" ? `${variable}: \t.word\t${value ? value : 0} //{enter a more exact value for variable: '${variable}'}` :
-        "noTypeYet"
+    if(type === "variable"){
+      const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
+      console.log("variable index", variableIndex)
+      const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
+      console.log("value index", valueIndex)
+      console.log("final", )
+      dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2, dataStack[valueIndex].length-value.length-3)}'${variable}'${dataStack[valueIndex].slice(-1)}`;
     }
-    if(newVal !== "noTypeYet"){
-    	dataStack[variableIndex] = newVal
+  	else{
+      const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
+      console.log("index", variableIndex)
+      if(variableIndex !== -1){
+          newVal =  
+              type ==="string" ? `${variable}: \t.asciiz\t"${value}" //{enter a more exact space for variable: '${variable}'}` :
+              type ==="int" ? `${variable}: \t.word\t${value ? value : 0} //{enter a more exact value for variable: '${variable}'}` :
+              "noTypeYet"
+      }
+      if(newVal !== "noTypeYet"){
+          dataStack[variableIndex] = newVal
+      }
     }
+    console.log('type', newVal)
   }
   
   function addStringToData(str){
@@ -89,12 +101,17 @@ BinaryExpression
  = expr:ArtihmeticExpression { functionStack.push(expr)}
 
 VariableAssignmentStatement
- = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" { assignValueToVariable(variable.value, value.type, value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
+ = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" {console.log("value:", value); assignValueToVariable(variable.value, "int", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
  / VariableAssignment
 
 VariableAssignment
- = variable:(Variable) _ "=" _ value:ArtihmeticExpression  {assignValueToVariable(variable.value, value.type, value.value); value.value ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral/Variable) {assignValueToVariable(variable.value, value.type, value.value);  functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
+ = variable:(Variable) _ "=" _ value:ArtihmeticExpression  {
+ console.log("myVal", value)
+ 	assignValueToVariable(variable.value, value.type, value.value); 
+    value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) 
+    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
+ / variable:(Variable) _ "=" _ value:(Variable) {return "dog"}
+ / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {assignValueToVariable(variable.value, value.type, value.value);  functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
  / variable:(Variable) _ "=" _ value:Input {assignValueToVariable(variable.value, value.type, value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
 
 //FunctionDeclaration
