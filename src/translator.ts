@@ -21,6 +21,9 @@ export default class Translate {
             case "input":
                 mipsCode += this.translateInput(pyCode as InputToken);
                 break;
+            case "variableAssignment":
+                mipsCode += this.translateVariableAssignment(pyCode as VariableAssignmentToken);
+                break;
             default:
                 mipsCode += "//some other code\n";
                 break;
@@ -32,15 +35,15 @@ export default class Translate {
     public translatePrint(token: PrintToken): string {
         let printMips = ""
         token.properties.prompt.forEach(prompt => {
-            printMips += this._translatePrintPrompts(prompt);
+            printMips += this._translatePrintPrompt(prompt);
         })
         //print newline after a print statement
-        printMips += `#printing newline\naddi $a0, $0, 0xA\t#ascii code for LF(newline), if you have any trouble try 0xD for CR.\naddi $v0, $0, 11\t#syscall 11 prints the lower 8 bits of $a0 as an ascii character.\nsyscall\n`
+        printMips += `#printing newline\naddi $a0, $0, 0xA #ascii code for LF(newline), if you have any trouble try 0xD for CR.\naddi $v0, $0, 11 #syscall 11 prints the lower 8 bits of $a0 as an ascii character.\nsyscall\n`
         return printMips;
     }
 
     /** Translates all prompts(in a single print statement) into mips */
-    private _translatePrintPrompts(printToken: DataObject | ArtihmeticExpressionToken) {
+    private _translatePrintPrompt(printToken: DataObject | ArtihmeticExpressionToken) {
         let mipsCode = "";
         if ((printToken as DataObject).spaced) {
             mipsCode += `la $a0, 32\naddi $v0, $0, 11\nsyscall\n` //printing space
@@ -54,6 +57,12 @@ export default class Translate {
                 break;
             case "variable":
                 mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n` //printing single variable
+                break;
+            case "variable-int":
+                mipsCode += `lw $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 1\nsyscall\n` //printing single integer variable
+                break;
+            case "variable-string":
+                mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n` //printing single string variable
                 break;
             case "artihmeticExpression":
                 //compute arthimetic expression
@@ -70,24 +79,56 @@ export default class Translate {
     }
 
     /** Translates input tokens to mips code */
-    public translateInput(token: InputToken): string {
+    public translateInput(token: InputToken, variable?: string): string {
         let inputMips = "";
         token.properties.prompt.forEach(prompt => {
-            inputMips += this._translatePrintPrompts(prompt);
-            console.log("type", token.type)
-            switch (token.type) {
-                case "int":
-                    inputMips += `addi $v0, $0,5\t#reading an int but not assigning it anywhere\nsyscall\n`
-                    break;
-                case "string":
-                    inputMips += `la $a0, ENTER_STR_ADDRESS\t#reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
-                    break;
-                case null:
-                    inputMips += `la $a0, ENTER_STR_ADDRESS\t#reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
-                    break;
-            }
+            inputMips += this._translatePrintPrompt(prompt);
+            inputMips += this._translateInputPrompt(token.type, variable);
         })
         return inputMips;
+    }
+
+    private _translateInputPrompt(type: string, variable?: string) {
+        let mipsCode = "";
+        switch (type) {
+            case "int":
+                mipsCode += variable ? `addi $v0, $0, 5\nsyscall\nsw $v0, ${variable}\n`
+                    : `addi $v0, $0,5\t#CAUTION! reading an int but not assigning it anywhere\nsyscall\n`
+                break;
+            case "string":
+                mipsCode += variable ? `la $a0, ${variable}\naddi $a1, $0, 60\naddi $v0, $0, 8\nsyscall\n`
+                    : `la $a0, ENTER_STR_ADDRESS\t#CAUTION! reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
+                break;
+            case null:
+                mipsCode += variable ? `la $a0, ${variable}\naddi $a1, $0, 60\naddi $v0, $0, 8\nsyscall\n`
+                    : `la $a0, ENTER_STR_ADDRESS\t#reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
+                break;
+        }
+        return mipsCode
+    }
+
+    /** Translates variable assignment tokens to mips code */
+    public translateVariableAssignment(token: VariableAssignmentToken) {
+        let variableAssignmentMips = ""
+        if ((token.properties.value as DataObject).value) {
+            return ""; // already handled by parser
+        }
+
+        if ((token.properties.value as InputToken).token === "input") {
+            // Token is an input()
+            const inputToken = token.properties.value as InputToken
+            variableAssignmentMips += this.translateInput(inputToken, token.properties.variable);
+        }
+
+        else {
+            // Token is an arithmetic expression
+            const arithemeticExpression = (token.properties.value as ArtihmeticExpressionToken)
+            variableAssignmentMips += this.translateArithmetic(arithemeticExpression);
+            variableAssignmentMips += `sw $t0, ${token.properties.variable}\n`
+        }
+
+        return variableAssignmentMips;
+
     }
 
     /** Translates arithemetic tokens to mips code */
