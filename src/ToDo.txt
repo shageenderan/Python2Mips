@@ -13,12 +13,31 @@ To Do
         print(45/50 * (2*2 + 3*4)) - results in infinite loop
         Has to do with how {right: next} is handled.
  [DONE] Add support for casting values i.e. x = 10; str(x)
- 
+ [DONE] Translate input statements
+ [DONE] Differentiate between integer and string variables. 
+ [DONE] Translate variable assignment statements
+
 Important
- - Translate input statements
- - Differentiate between integer and string variables. 
+ - Unit tests for input translations
+ - Unit tests for variable assignment translations
+ - translation for comments
+ - if/else loops
  
 
 Small/Optional
  - Add function to reduce print/ input args. i.e. print("hello" + "world") reduces to print("hello world") or print(3 + 3) 
    reduces to print(6)
+
+Not Supporting:
+1) redeclaring variables i.e.:
+      x = "hello"
+      print(x)
+      x = 6
+      print(x)
+  reason: won't know how to allocate for variable (.space or .word), dont be stingy with variable declarations :)
+2) floating point numbers
+  reason: out of scope
+3) classes
+  reason: out of scope
+4) file manipulation(for now, might change)
+  reason: out of scope

@@ -108,14 +108,14 @@ VariableAssignmentStatement
  / VariableAssignment
 
 VariableAssignment
- = variable:(Variable) _ "=" _ value:ArtihmeticExpression  {
+ = variable:Variable _ "=" _ 'None' {}
+ / variable:(Variable) _ "=" _ value:ArtihmeticExpression  {
  console.log("myVal", value)
  	assignValueToVariable(variable.value, value.type, value.value); 
     value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) 
     : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:(Variable) {return "dog"}
  / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {assignValueToVariable(variable.value, value.type, value.value);  functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:Input {console.log("LOOK HERE", value); assignValueToVariable(variable.value, "string", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
+ / variable:(Variable) _ "=" _ value:Input {assignValueToVariable(variable.value, "string", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
 
 //FunctionDeclaration
  //= "function" {return "func"}
@@ -249,6 +249,7 @@ ReservedWord
  / "int"
  / "str"
  / "input"
+ / "None"
 
 //taken from javascript parser
 Variable
