@@ -1,5 +1,5 @@
 { 
-const dataStack = []; const functionStack = []; var i=0; const inputs = [];
+const dataStack = []; const functionStack = []; let variables = {}; var i=0; const inputs = [];
   function extractList(list, index) {
     return list.map(function(element) { return element[index]; });
   }
@@ -21,6 +21,7 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
       const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
       console.log("value index", valueIndex)
       console.log("final", )
+      variables = {...variables, [variable]: type}
       dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2, dataStack[valueIndex].length-value.length-3)}'${variable}'${dataStack[valueIndex].slice(-1)}`;
     }
   	else{
@@ -28,10 +29,11 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
       console.log("index", variableIndex)
       if(variableIndex !== -1){
           newVal =  
-              type ==="string" ? `${variable}: \t.asciiz\t"${value}" //{enter a more exact space for variable: '${variable}'}` :
-              type ==="int" ? `${variable}: \t.word\t${value ? value : 0} //{enter a more exact value for variable: '${variable}'}` :
-              "noTypeYet"
+              type ==="string" && value ? `${variable}: \t.asciiz\t"${value}" #{enter a more exact space for variable: '${variable}'}` :
+              type ==="int" ? `${variable}: \t.word\t${value ? value : 0} #{enter a more exact value for variable: '${variable}'}` :
+              "noTypeYet";
       }
+      variables = {...variables, [variable]: type}
       if(newVal !== "noTypeYet"){
           dataStack[variableIndex] = newVal
       }
@@ -52,12 +54,13 @@ const dataStack = []; const functionStack = []; var i=0; const inputs = [];
     }
   }
   
-  function addVariableToData(str, type, value){
+  function addVariableToData(str){
   	//switch on str value
-    console.log(str, type)
+    console.log(str)
     const found = dataStack.find(elem => elem.slice(0, str.length) === str)
     if (!found){
-      dataStack.push(`${str}: \t.space\t60 //{enter a more exact space for variable: '${str}'}`)
+      variables = {...variables, [str]: null}
+      dataStack.push(`${str}: \t.space\t60 #{enter a more exact space for variable: '${str}'}`)
     }
   	
   }
@@ -112,7 +115,7 @@ VariableAssignment
     : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
  / variable:(Variable) _ "=" _ value:(Variable) {return "dog"}
  / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {assignValueToVariable(variable.value, value.type, value.value);  functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:Input {assignValueToVariable(variable.value, value.type, value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
+ / variable:(Variable) _ "=" _ value:Input {console.log("LOOK HERE", value); assignValueToVariable(variable.value, "string", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
 
 //FunctionDeclaration
  //= "function" {return "func"}
@@ -127,7 +130,7 @@ IOFunction
 
 IOArgs
  = CastedArgs
- / Variable
+ / value: Variable {return {...value, type:variables[value.value] ? `variable-${variables[value.value]}` : `variable`} }
  / str:StringLiteral {let index = addStringToData(str.value); return {...str, value: `str${index}`}}
  / IntegerLiteral
  / _ !(","_) {return { type: null};}
@@ -152,7 +155,7 @@ Input
  / prompt:InputStatement { return {...prompt, type: null}}
 
 InputStatement
- = InputToken _ "(" _ prompt:(Variable/ArtihmeticExpression/ IOArgs) _  tail:("+" _ moreArgs:IOArgs _ {return moreArgs })* _ ")"
+ = InputToken _ "(" _ prompt:(ArtihmeticExpression/ IOArgs) _  tail:("+" _ moreArgs:IOArgs _ {return moreArgs })* _ ")"
  	{return {token: "input", properties:{prompt: [prompt, ...tail]}} }
 
 Comment
@@ -249,7 +252,7 @@ ReservedWord
 
 //taken from javascript parser
 Variable
-  = !ReservedWord name:VariableName {addVariableToData(name.value, name.type);  return {type:name.type, value: name.value}}
+  = !ReservedWord name:VariableName {addVariableToData(name.value);  return {type:name.type, value: name.value}}
 
 VariableName "Variable"
   = head:VariableStart tail:VariablePart* {
@@ -351,7 +354,7 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 // Accepts expressions like "2 * (3 + 4)" and computes their value.
 
 ArtihmeticExpression
- = value:ArtihmeticStart {return value.type ? value : {...value, type:"artihmeticExpression"}}
+ = value:ArtihmeticStart {return value.type ? value.type === "variable" ? {...value, type:variables[value.value] ? `variable-${variables[value.value]}` : `variable`} : value : {...value, type:"artihmeticExpression"}}
 
 ArtihmeticStart
   = head:ArtihmeticTerm tail:(_ ("+" / "-") _ ArtihmeticTerm)* {
