@@ -22,6 +22,8 @@ Important
  - Unit tests for variable assignment translations
  - translation for comments
  - if/else loops
+ - parse prompts for numbers to get insight on how much space to allocate to a variable. i.e. x = input("Enter name(max 60 chars)")
+  will return 60 as space for x
  
 
 Small/Optional

@@ -5,7 +5,8 @@ import { PrintToken, ArtihmeticExpressionToken, InputToken, VariableAssignmentTo
 const testStringPrint = `x = 2;\nprint(2+2)\ninput("type something:")`
 const testPrint = `print(2)\nprint("Hello")\nprint("hello", "world")\nprint(2+2)\nprint(9*30/5 + 32)`
 const testArPrint = `print(9*30/5 + 32)`
-const testInput = `input("Enter your name: "); int(input("enter your birthdate: "))`
+const testInput = `(2-3) * (6-3*8) + 90/45`
+const testSimpleInput = `input()`
 const testVarAssign = `name = input('Enter name (max 60 chars): ')\nprint('Hello ' + name)\nage = int(input("enter your age"))\nprint(age)`
 const testVarAssignComplex = `temp_C = int(input('Enter temperature in Celsius '))\ntemp_F = int(9*temp_C/5 + 32)\nprint('Temperature in Fahrenheit is ' + str(temp_F))`
 
@@ -22,7 +23,7 @@ export interface parserOutput {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(testVarAssignComplex) as parserOutput;
+    const sampleOutput: parserOutput = parse(testInput) as parserOutput;
     //console.log(sampleOutput)
     const test = sampleOutput.tokens.map(elem => {
         // console.log("token: ", elem)

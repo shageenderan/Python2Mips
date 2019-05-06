@@ -13,20 +13,20 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
   }
   
   function assignValueToVariable(variable, type, value){
-  	console.log("params", variable, type, value)
+  	//console.log("params", variable, type, value)
     let newVal = "noTypeYet"
     if(type === "variable"){
       const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
-      console.log("variable index", variableIndex)
+      //console.log("variable index", variableIndex)
       const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
-      console.log("value index", valueIndex)
-      console.log("final", )
+      //console.log("value index", valueIndex)
+      //console.log("final", )
       variables = {...variables, [variable]: type}
       dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2, dataStack[valueIndex].length-value.length-3)}'${variable}'${dataStack[valueIndex].slice(-1)}`;
     }
   	else{
       const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
-      console.log("index", variableIndex)
+      //console.log("index", variableIndex)
       if(variableIndex !== -1){
           newVal =  
               type ==="string" && value ? `${variable}: \t.asciiz\t"${value}" #{enter a more exact space for variable: '${variable}'}` :
@@ -38,11 +38,11 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
           dataStack[variableIndex] = newVal
       }
     }
-    console.log('type', newVal)
+    //console.log('type', newVal)
   }
   
   function addStringToData(str){
-  console.log("sliced", str)
+  //console.log("sliced", str)
   	const strIndex = dataStack.findIndex(elem => elem.slice(-1 * str.length) === str )
   	if (strIndex === -1){ //elem not in dataStack
       dataStack.push(`str${i}: \t.asciiz\t"${str}"`)
@@ -56,7 +56,7 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
   
   function addVariableToData(str){
   	//switch on str value
-    console.log(str)
+    //console.log(str)
     const found = dataStack.find(elem => elem.slice(0, str.length) === str)
     if (!found){
       variables = {...variables, [str]: null}
@@ -104,13 +104,13 @@ BinaryExpression
  = expr:ArtihmeticExpression { functionStack.push(expr)}
 
 VariableAssignmentStatement
- = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" {console.log("value:", value); assignValueToVariable(variable.value, "int", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
+ = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" {assignValueToVariable(variable.value, "int", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
  / VariableAssignment
 
 VariableAssignment
  = variable:Variable _ "=" _ 'None' {}
  / variable:(Variable) _ "=" _ value:ArtihmeticExpression  {
- console.log("myVal", value)
+ //console.log("myVal", value)
  	assignValueToVariable(variable.value, value.type, value.value); 
     value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) 
     : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}

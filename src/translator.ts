@@ -24,8 +24,11 @@ export default class Translate {
             case "variableAssignment":
                 mipsCode += this.translateVariableAssignment(pyCode as VariableAssignmentToken);
                 break;
+            case "artihmeticExpression":
+                mipsCode += this.translateArithmetic(pyCode as ArtihmeticExpressionToken);
+                break;
             default:
-                mipsCode += "//some other code\n";
+                mipsCode += "#some other code\n";
                 break;
         }
         return mipsCode;
@@ -83,8 +86,8 @@ export default class Translate {
         let inputMips = "";
         token.properties.prompt.forEach(prompt => {
             inputMips += this._translatePrintPrompt(prompt);
-            inputMips += this._translateInputPrompt(token.type, variable);
         })
+        inputMips += this._translateInputPrompt(token.type, variable);
         return inputMips;
     }
 
@@ -93,15 +96,15 @@ export default class Translate {
         switch (type) {
             case "int":
                 mipsCode += variable ? `addi $v0, $0, 5\nsyscall\nsw $v0, ${variable}\n`
-                    : `addi $v0, $0,5\t#CAUTION! reading an int but not assigning it anywhere\nsyscall\n`
+                    : `addi $v0, $0,5 #[WARNING]:reading an int but not assigning it anywhere\nsyscall\n`
                 break;
             case "string":
                 mipsCode += variable ? `la $a0, ${variable}\naddi $a1, $0, 60\naddi $v0, $0, 8\nsyscall\n`
-                    : `la $a0, ENTER_STR_ADDRESS\t#CAUTION! reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
+                    : `la $a0, STR_ADDRESS #[WARNING]:reading a string but not assigning it anywhere\nli $a1, MAX_SPACE_FOR_STR\naddi $v0, $0,8\nsyscall\n`
                 break;
             case null:
                 mipsCode += variable ? `la $a0, ${variable}\naddi $a1, $0, 60\naddi $v0, $0, 8\nsyscall\n`
-                    : `la $a0, ENTER_STR_ADDRESS\t#reading a string but not assigning it anywhere\nli $a1, MAX_CHAR_FOR_STR\naddi $v0, $0,8\nsyscall\n`
+                    : `la $a0, STR_ADDRESS #[WARNING]:reading a string but not assigning it anywhere\nli $a1, MAX_SPACE_FOR_STR\naddi $v0, $0,8\nsyscall\n`
                 break;
         }
         return mipsCode
@@ -141,6 +144,8 @@ export default class Translate {
             const currentOperationIndex = (next || next === 0) ? next : (prev || prev === 0) ? prev : current
             const currentOperation = operations[currentOperationIndex]
             if (currentOperationIndex === operations.length - 1 && (currentOperation.left === "prevVal" && currentOperation.right === "nextVal")) {
+                // console.log("FINAL REGISTRES", usedRegisters)
+                // console.log("current", current)
                 mipsCode.push({ operator: operations[operations.length - 1].operator, finalRegister: "$t0", overwriteRegister: true, left: { type: "register", value: usedRegisters['0'] }, right: { type: "register", value: availRegisters[currentRegister] } })
                 break;
             }
@@ -153,9 +158,11 @@ export default class Translate {
             }
 
             else if (currentOperation.left === "prevVal" && currentOperation.right === "nextVal") {
+                // console.log("PREV REGISTERS", usedRegisters)
+                // console.log("CURRENT", current)
                 currentRegister = (currentRegister + 1) % 2;
+                mipsCode.push({ operator: currentOperation.operator, finalRegister: availRegisters[currentRegister], overwriteRegister: false, left: { type: "register", value: usedRegisters[current - 3] }, right: { type: "register", value: usedRegisters[current - 2] } })
                 usedRegisters = { ...usedRegisters, [currentOperationIndex]: availRegisters[currentRegister] }
-                mipsCode.push({ operator: currentOperation.operator, finalRegister: availRegisters[currentRegister], overwriteRegister: true, left: { type: "register", value: usedRegisters[current - 2] }, right: { type: "register", value: usedRegisters[current - 1] } })
                 current += 1
             }
 
@@ -168,17 +175,20 @@ export default class Translate {
 
             else if (currentOperation.right === "nextVal") {
                 usedRegisters = { ...usedRegisters, [currentOperationIndex]: availRegisters[currentRegister] };
-                mipsCode.push({ operator: currentOperation.operator, finalRegister: availRegisters[currentRegister], overwriteRegister: true, left: currentOperation.left, right: { type: "register", value: usedRegisters[currentOperationIndex] } })
+                mipsCode.push({ operator: currentOperation.operator, finalRegister: availRegisters[currentRegister], overwriteRegister: false, left: currentOperation.left, right: { type: "register", value: usedRegisters[currentOperationIndex] } })
                 current += 1, next = null;
             }
         }
-        return mipsCode.map(elem => this._translateArithmeticOperation(elem, availRegisters[currentRegister + 2])).join("");
+        return mipsCode.map(elem => this._translateArithmeticOperation(elem, availRegisters[currentRegister + 1])).join("");
     }
 
     /** Translates a single arithmetic operation to mips code */
     private _translateArithmeticOperation(mipsOperation: parsedMipsArithmetic, recentRegister?: string) {
         let mipsCode = ""
+        // console.log("LOOK", mipsOperation)
+        // console.log("FREE", recentRegister)
         const freeRegister = !mipsOperation.overwriteRegister ? recentRegister : mipsOperation.finalRegister === "$t0" ? "$t1" : "$t0";
+        // console.log("FREE REG", freeRegister)
         switch (mipsOperation.operator) {
             case "+":
                 mipsCode += this._operationToString("add", mipsOperation, freeRegister)
@@ -199,49 +209,89 @@ export default class Translate {
     }
 
     private _operationToString(operatorString: string, mipsOperation: parsedMipsArithmetic, freeRegister?: string): string {
-        let mipsCode = "";
+        // console.log(operatorString, mipsOperation.finalRegister, freeRegister)
+        let mipsCode = "", leftRegister = freeRegister, rightRegister = mipsOperation.finalRegister;
         if (mipsOperation.operator === "+" || mipsOperation.operator === "-") {
-            if (mipsOperation.left.type === "variable") {
-                mipsCode += `lw ${mipsOperation.finalRegister}, ${mipsOperation.left.value}\n`
-            }
-            else if (mipsOperation.left.type === "int") {
-                mipsCode += `li ${mipsOperation.finalRegister}, ${mipsOperation.left.value}\n`
-            }
-            //right
-            if (mipsOperation.right.type === "variable") {
-                mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
-            }
-            else if (mipsOperation.right.type === "int") {
-                mipsCode += `li ${freeRegister}, ${mipsOperation.right.value}\n`
-            }
             if (mipsOperation.left.type === "register" && mipsOperation.right.type === "register") {
                 mipsCode += `${operatorString} ${mipsOperation.finalRegister}, ${mipsOperation.left.value}, ${mipsOperation.right.value}\n`
             }
             else {
-                mipsCode += `${operatorString} ${mipsOperation.finalRegister}, ${mipsOperation.finalRegister}, ${freeRegister}\n`
+                //left
+                if (mipsOperation.left.type === "variable") {
+                    mipsCode += `lw ${leftRegister}, ${mipsOperation.left.value}\n`
+                }
+                else if (mipsOperation.left.type === "int") {
+                    mipsCode += `li ${leftRegister}, ${mipsOperation.left.value}\n`
+                }
+                else if (mipsOperation.left.type === "register") {
+                    leftRegister = mipsOperation.left.value as string
+                }
+
+                //right
+                if (mipsOperation.left.type === "register") {
+                    if (mipsOperation.right.type === "variable") {
+                        mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "int") {
+                        mipsCode += `li ${freeRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    rightRegister = freeRegister;
+                }
+                else {
+                    if (mipsOperation.right.type === "variable") {
+                        mipsCode += `lw ${rightRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "int") {
+                        mipsCode += `li ${rightRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "register") {
+                        rightRegister = mipsOperation.right.value as string
+                    }
+                }
+                mipsCode += `${operatorString} ${mipsOperation.finalRegister}, ${leftRegister}, ${rightRegister}\n`
             }
         }
         else if (mipsOperation.operator === "*" || mipsOperation.operator === "/") {
-            //left
-            if (mipsOperation.left.type === "variable") {
-                mipsCode += `lw ${mipsOperation.finalRegister}, ${mipsOperation.left.value}\n`
-            }
-            else if (mipsOperation.left.type === "int") {
-                mipsCode += `li ${mipsOperation.finalRegister}, ${mipsOperation.left.value}\n`
-            }
-            //right
-            if (mipsOperation.right.type === "variable") {
-                mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
-            }
-            else if (mipsOperation.right.type === "int") {
-                mipsCode += `li ${freeRegister}, ${mipsOperation.right.value}\n`
-            }
             if (mipsOperation.left.type === "register" && mipsOperation.right.type === "register") {
                 mipsCode += `${operatorString} ${mipsOperation.left.value}, ${mipsOperation.right.value}\nmflo ${mipsOperation.finalRegister}\n`
             }
             else {
-                mipsCode += `${operatorString} ${mipsOperation.finalRegister}, ${freeRegister}\nmflo ${mipsOperation.finalRegister}\n`
+                //left
+                if (mipsOperation.left.type === "variable") {
+                    mipsCode += `lw ${leftRegister}, ${mipsOperation.left.value}\n`
+                }
+                else if (mipsOperation.left.type === "int") {
+                    mipsCode += `li ${leftRegister}, ${mipsOperation.left.value}\n`
+                }
+                else if (mipsOperation.left.type === "register") {
+                    leftRegister = mipsOperation.left.value as string
+                }
+                //right
+                if (mipsOperation.left.type === "register") {
+                    if (mipsOperation.right.type === "variable") {
+                        mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "int") {
+                        mipsCode += `li ${freeRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    rightRegister = freeRegister;
+                }
+                else {
+                    if (mipsOperation.right.type === "variable") {
+                        mipsCode += `lw ${rightRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "int") {
+                        mipsCode += `li ${rightRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "register") {
+                        rightRegister = mipsOperation.right.value as string
+                    }
+                }
+
+                mipsCode += `${operatorString} ${leftRegister}, ${rightRegister}\nmflo ${mipsOperation.finalRegister}\n`
+
             }
+
         }
         return mipsCode;
 
