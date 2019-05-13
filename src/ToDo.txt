@@ -16,13 +16,24 @@ To Do
  [DONE] Translate input statements
  [DONE] Differentiate between integer and string variables. 
  [DONE] Translate variable assignment statements
+ [DONE] Unit tests for input translations
+ [DONE] Unit tests for variable assignment translations
+ [DONE] Refactor storing string variables from .asciiz to .space
+ [DONE] Add support for string concatenation. i.e. str = "hello", str = str + "world". as well as handle multiple concats. i.e. str = "he" + "llo " + "world"
+ [DONE] Move function calls to after sys exit
+    -[RESTRICTING] Fix string concatenation translation going into an infinite loop when variable is set on the right. i.e. x = "world" + x. (might end up restricting this)
+ [DONE] Add support for dynamic variable types
+ [DONE] Add support to dynamically allocate space for strings of known length/Integers/ArtihmeticExpressions. 
+
 
 Important
- - Unit tests for input translations
- - Unit tests for variable assignment translations
- - translation for comments
+ - Differentiate between assigning string variables and int variables during variable assignment. i.e. z = x + y, should return 
+ ArtihmeticExpression if x and y are int variables but return StringConcatenation of x and y are string variables. This will also
+ fix not being able to mix multiple variables consecutively during string concatenation.
+ - Unit tests for string concatenations 
  - if/else loops
- - parse prompts for numbers to get insight on how much space to allocate to a variable. i.e. x = input("Enter name(max 60 chars)")
+ - translation for comments
+ - parse prompts for numbers to get insight on how much space to allocate to a input variable. i.e. x = input("Enter name(max 60 chars)")
   will return 60 as space for x
  
 
@@ -31,12 +42,26 @@ Small/Optional
    reduces to print(6)
 
 Not Supporting:
-1) redeclaring variables i.e.:
+1) concatentaing a string with itself at a position that is not 0 i.e.:
       x = "hello"
       print(x)
-      x = 6
+      x = x + " world"
       print(x)
-  reason: won't know how to allocate for variable (.space or .word), dont be stingy with variable declarations :)
+      [VALID]
+
+      x = "world"
+      print(x)
+      x = "hello " + x
+      print(x)
+      [NOT-VALID]
+  reason: without declaring a temporary lable of a large arbritary size, it would be very hard to find the correct offset to 
+    store the variable value in its memory location in all cases(think something like x = "hello" + y + x, where y is some user 
+    inputted string; it would be hard to know exactly the right offset to store x initially without overwritting the current 
+    contents of x)
+  workaround: don't be stingy with variable declarations :)
+  possible fix: declaring a temp label in .data of a large size to store this variable in before concatenating everything. 
+    pros: easy to implement
+    cons: possible huge waste of memory
 2) floating point numbers
   reason: out of scope
 3) classes

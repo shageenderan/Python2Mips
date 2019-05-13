@@ -16,7 +16,7 @@ describe('Testing Parser and Translator for Python Print Statements', () => {
             return pyTranslator.translate(elem)
         })
         expect(parserPrintOutput.data[0]).to.equal('str0: \t.asciiz\t"hello world"');
-        expect(result[0]).to.equal("la $a0, str0\naddi $v0, $0, 4\nsyscall\n" + 
+        expect(result[0].mipsCode).to.equal("la $a0, str0\naddi $v0, $0, 4\nsyscall\n" + 
         `#printing newline\naddi $a0, $0, 0xA #ascii code for LF(newline), if you have any trouble try 0xD for CR.\naddi $v0, $0, 11 #syscall 11 prints the lower 8 bits of $a0 as an ascii character.\nsyscall\n`);
     });
 

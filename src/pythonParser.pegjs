@@ -12,44 +12,130 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
     return value !== null ? value : [];
   }
   
+  function calculateSpaceNeeded(value, variable){
+  console.log("calculateSpace>", "variables", variables, "current", variables[variable])
+  	console.log("calculateSpace>", "calculating for", value)
+    if (value.token === "input"){
+        console.log("calculateSpace>", "returned", 60)
+    	return 60; //assumed input size
+    }
+    if (typeof value === "number"){
+        console.log("calculateSpace>", "returned", 4)
+    	return 4;
+    }
+    if (value.length){
+     console.log("calculateSpace>", "current is string", variables[variable])
+     console.log("calculateSpace>", "returned", value.length + 1)
+      return value.length + 1
+    }
+    else{
+    	//its a string concatenation, find the length of the combined string
+        console.log("calculateSpace>", "finding length of combined:", value.properties.addedStrings)
+        let spaceNeeded = 0
+        value.properties.addedStrings.forEach(elem => {
+        	if(elem.type === "string"){
+            	spaceNeeded += elem.value.length
+            }
+            else if(elem.type === "variable"){
+                let rootElem = variables[elem.value]
+                console.log("calculateSpace>", "looking for variables value", rootElem)
+                while(rootElem.type !== "string"){
+                  rootElem = variables[rootElem.value]
+                  console.log("calculateSpace>", "looking for variables value loop", rootElem)
+                }
+                spaceNeeded += (isNaN(rootElem.value.length) ? rootElem.space : rootElem.value.length)
+           	}
+        })
+        console.log("calculateSpace>", "final var", variables)
+        console.log("calculateSpace>", "returned", spaceNeeded + 1)
+        return spaceNeeded + 1
+    }
+  }
+
+  function calculateMinSpaceNeeded(value, variable){
+    console.log("[MIN]", value, variable)
+    console.log("[MIN]", variables, variables[variable])
+    let spaceNeeded = calculateSpaceNeeded(value, variable);
+    return  Math.max(variables[variable].space ? variables[variable].space : 0, spaceNeeded)
+  }
+  
+  //returns -1 if variable already in dataStack
   function assignValueToVariable(variable, type, value){
-  	//console.log("params", variable, type, value)
-    let newVal = "noTypeYet"
-    if(type === "variable"){
+  	console.log("assignValueToVariable>", "params", variable, type, value)
+    console.log("assignValueToVariable>", variables)
+    if(variables[variable].type === undefined) {
       const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
-      //console.log("variable index", variableIndex)
-      const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
-      //console.log("value index", valueIndex)
-      //console.log("final", )
-      variables = {...variables, [variable]: type}
-      dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2, dataStack[valueIndex].length-value.length-3)}'${variable}'${dataStack[valueIndex].slice(-1)}`;
-    }
-  	else{
-      const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
-      //console.log("index", variableIndex)
-      if(variableIndex !== -1){
-          newVal =  
-              type ==="string" && value ? `${variable}: \t.asciiz\t"${value}" #{enter a more exact space for variable: '${variable}'}` :
-              type ==="int" ? `${variable}: \t.word\t${value ? value : 0} #{enter a more exact value for variable: '${variable}'}` :
-              "noTypeYet";
+      console.log("assignValueToVariable>","variable index", variableIndex)
+      let newVal = "noTypeYet"
+      if(type.includes("variable")){
+        const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
+        //console.log("value index", valueIndex)
+        console.log("assignValueToVariable>", "final", )
+        variables = {...variables, [variable]: {type, value}}
+        dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2, dataStack[valueIndex].length-value.length-3)}'${variable}'${dataStack[valueIndex].slice(-1)}`;
+      	return;
       }
-      variables = {...variables, [variable]: type}
-      if(newVal !== "noTypeYet"){
-          dataStack[variableIndex] = newVal
+      else if(type === "artihmeticExpression"){
+        variables = {...variables, [variable]: {type, value, space: 4}}
+        return;
       }
+      else if(type === "stringConcatenation"){
+        variables = {...variables, [variable]: {type: "string", value, space: calculateMinSpaceNeeded(value, variable)}}
+        dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value, variable)} #{enter a more exact space for variable: '${variable}'}`
+        return;
+      }
+      else if(value && value.token === "input"){
+      	 dataStack[variableIndex] = `${variable}: \t.space\t${60} #{enter a more exact space for variable: '${variable}'}`
+         variables = {...variables, [variable]: {type: "string", value, space: 60}} //assumed input size
+         return;
+      }
+      else{
+      console.log("assignValueToVariable>", "entered else")
+        if(variableIndex !== -1){
+            newVal =  
+                type ==="string"  ? `${variable}: \t.asciiz\t"${value}"` :
+                type ==="int" ? `${variable}: \t.word\t${value ? value : 0} ` :
+                "noTypeYet";
+            console.log("setting up newVal", newVal)
+        }
+        if(newVal !== "noTypeYet"){
+        console.log("newVal", newVal)
+            variables = {...variables, [variable]: {type, value, space: type === "string" ? calculateMinSpaceNeeded(value, variable) : 4}} //4 bytes = word
+            dataStack[variableIndex] = newVal
+        }
+      }
+      //console.log('type', newVal)
     }
-    //console.log('type', newVal)
+
+    else{
+      //variable already in datastack
+    	console.log("what am i doing here")
+    	if(type === "stringConcatenation" || type === "string"){
+            console.log("assignValueToVariable>", dataStack)
+        	const initialDeclarationIndex = functionStack.findIndex(elem => elem.properties.variable === variable)
+            functionStack[initialDeclarationIndex] = {...functionStack[initialDeclarationIndex], properties:{...functionStack[initialDeclarationIndex].properties, value: {...functionStack[initialDeclarationIndex].properties.value, initialDeclaration: false }}}
+        	const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
+        	console.log("assignValueToVariable>", variableIndex)
+            dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value, variable)} #{enter a more exact space for variable: '${variable}'}`
+            variables = {...variables, [variable]: {type: "string", value, space: calculateSpaceNeeded(value, variable)}}
+            console.log(dataStack)
+            console.log(variables)
+        }
+            console.log("assignValueToVariable>", "variables", variable, type, value, variables)
+      	    return -1
+      }
+          console.log("assignValueToVariable>", "variables", variable, type, value, variables)
   }
   
   function addStringToData(str){
-  //console.log("sliced", str)
-  	const strIndex = dataStack.findIndex(elem => elem.slice(-1 * str.length) === str )
-  	if (strIndex === -1){ //elem not in dataStack
+  	const strIndex = dataStack.map(elem => elem.replace(/"+/g, '')).findIndex(elem => elem.slice(-1 * str.length) === str)
+    if (strIndex === -1){ //elem not in dataStack
       dataStack.push(`str${i}: \t.asciiz\t"${str}"`)
       i++;
       return i - 1;
     }
   	else{ //elem in dataStack
+    console.log("found")
     	return strIndex
     }
   }
@@ -59,7 +145,7 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
     //console.log(str)
     const found = dataStack.find(elem => elem.slice(0, str.length) === str)
     if (!found){
-      variables = {...variables, [str]: null}
+      variables = {...variables, [str]: {}}
       dataStack.push(`${str}: \t.space\t60 #{enter a more exact space for variable: '${str}'}`)
     }
   	
@@ -104,23 +190,45 @@ BinaryExpression
  = expr:ArtihmeticExpression { functionStack.push(expr)}
 
 VariableAssignmentStatement
- = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" {assignValueToVariable(variable.value, "int", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "int"}}, })}
+ = variable:(Variable) _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" {assignValueToVariable(variable.value, "int", value.value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value:{...value, type: "int"}} })
+    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value:{...value, type: "int", initialDeclaration: true}} }) }
  / VariableAssignment
 
 VariableAssignment
  = variable:Variable _ "=" _ 'None' {}
+ / variable:Variable _ "+=" _ value:(strConcat: SelfStringConcat {return {...strConcat, properties:{...strConcat.properties, addedStrings: [variable, ...strConcat.properties.addedStrings]}}}) {const space = variables[variable.value].space ? variables[variable.value].space : 0; console.log("[owo]", value, variable.value); assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
+    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}) 
+ }
+ / variable:Variable _ "=" _ value:StringConcat {const space = variables[variable.value].space ? variables[variable.value].space : 0; console.log("[owo]", value, variable.value); assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
+    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}) 
+ }
  / variable:(Variable) _ "=" _ value:ArtihmeticExpression  {
  //console.log("myVal", value)
- 	assignValueToVariable(variable.value, value.type, value.value); 
-    value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value: {...value, type: "int"}}, }) 
-    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {assignValueToVariable(variable.value, value.type, value.value);  functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value}, })}
- / variable:(Variable) _ "=" _ value:Input {assignValueToVariable(variable.value, "string", value.value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, value:{...value, type: "string"}}, })}
+ 	if(assignValueToVariable(variable.value, value.type, value.value) === -1) {
+      value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int"}}, }) 
+      : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })
+   }
+   else{
+      value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int", initialDeclaration: true}}, }) 
+      : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })}
+   }
+ / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; assignValueToVariable(variable.value, value.type, value.value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value}}) 
+    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true}}}) }
+ / variable:(Variable) _ "=" _ value:Input {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; assignValueToVariable(variable.value, "string", value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, type: "string"}}, })}
 
 //FunctionDeclaration
  //= "function" {return "func"}
  /// FunctionToken 
 
+StringConcat
+ = head:StringLiteral tail:(_ "+" _ str:(StringLiteral/Variable) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
+ / head:Variable tail:(_ "+" _ str:(StringLiteral) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
+
+SelfStringConcat
+ = head:StringLiteral tail:(_ "+" _ str:(StringLiteral/Variable) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
+ / head:Variable tail:(_ "+" _ str:(StringLiteral) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
+ / head:(StringLiteral/Variable) {return {token:"stringConcatenation", properties:{addedStrings:[head]}};}
+ 
 Function
  = val:IOFunction {functionStack.push(val)}
  
@@ -130,7 +238,7 @@ IOFunction
 
 IOArgs
  = CastedArgs
- / value: Variable {return {...value, type:variables[value.value] ? `variable-${variables[value.value]}` : `variable`} }
+ / value: Variable {return {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`} }
  / str:StringLiteral {let index = addStringToData(str.value); return {...str, value: `str${index}`}}
  / IntegerLiteral
  / _ !(","_) {return { type: null};}
@@ -253,7 +361,7 @@ ReservedWord
 
 //taken from javascript parser
 Variable
-  = !ReservedWord name:VariableName {addVariableToData(name.value);  return {type:name.type, value: name.value}}
+  = !ReservedWord name:VariableName {addVariableToData(name.value); return {type:name.type, value: name.value}}
 
 VariableName "Variable"
   = head:VariableStart tail:VariablePart* {
@@ -355,7 +463,7 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 // Accepts expressions like "2 * (3 + 4)" and computes their value.
 
 ArtihmeticExpression
- = value:ArtihmeticStart {return value.type ? value.type === "variable" ? {...value, type:variables[value.value] ? `variable-${variables[value.value]}` : `variable`} : value : {...value, type:"artihmeticExpression"}}
+ = value:ArtihmeticStart {return value.type ? value.type === "variable" ? {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`} : value : {...value, type:"artihmeticExpression"}}
 
 ArtihmeticStart
   = head:ArtihmeticTerm tail:(_ ("+" / "-") _ ArtihmeticTerm)* {

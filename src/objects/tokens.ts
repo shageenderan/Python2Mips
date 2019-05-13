@@ -1,10 +1,17 @@
-export interface DataObject {
+export class DataObject {
     /** The type of data, i.e. string, int, variable etc.. */
     type: string | null;
     /** value of a string */
     value?: string | number;
     /** used in rare cases to indicate a space is needed */
     spaced?: boolean;
+}
+
+export class StringConcatenationToken {
+    token: string;
+    properties: {
+        addedStrings: Array<DataObject>;
+    }
 }
 
 export class ArtihmeticExpressionToken {
@@ -33,12 +40,18 @@ export class InputToken {
     }
 }
 
+export class VariableAssignmentDataObject extends DataObject{
+    initialDeclaration: boolean;
+}
+
 export class VariableAssignmentToken {
     token: string;
     properties: {
         variable: string;
-        value: DataObject |  ArtihmeticExpressionToken | InputToken
-        type: string;
+        value: DataObject |  ArtihmeticExpressionToken | InputToken | StringConcatenationToken;
+
+        /** indicates the space taken by this variable(including the null terminator '\0') BEFORE this variable assignment */
+        space?: number;
     }
 }
 
