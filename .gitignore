@@ -1,3 +1,5 @@
 node_modules
 mipsCode
+parserTest
+parserBackup
 *.js

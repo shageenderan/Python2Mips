@@ -1,5 +1,9 @@
+//This file represents a backup for a old version of the parser. 
+//Last modified : 2019-05-20 04:49:15
+//[STRING CONCAT] check if variable before multilply if is, then push it twice instead of repeating
+//[STRING CONCAT] return it in the form; addedString:[ {type:"string",value:"hello" }, {type:"variable", value:"y"} ] 
 { 
-const dataStack = []; const functionStack = []; let variables = {}; var i=0; const inputs = [];
+const dataStack = []; const functionStack = []; let variables = {}; var i=0; const inputs = []; let stringPresent=false;
   function extractList(list, index) {
     return list.map(function(element) { return element[index]; });
   }
@@ -59,72 +63,81 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
     return  Math.max(variables[variable].space ? variables[variable].space : 0, spaceNeeded)
   }
   
-  //returns -1 if variable already in dataStack
+    //returns -1 if variable already in dataStack
   function assignValueToVariable(variable, type, value){
   	console.log("assignValueToVariable>", "params", variable, type, value)
-    console.log("assignValueToVariable>", variables)
+    console.log("assignValueToVariable>", "current variables before this assignment", variables)
     if(variables[variable].type === undefined) {
       const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
-      console.log("assignValueToVariable>","variable index", variableIndex)
+      console.log("assignValueToVariable> first time variable assignment-","variable index", variableIndex)
       let newVal = "noTypeYet"
       if(type.includes("variable")){
         const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
         //console.log("value index", valueIndex)
-        console.log("assignValueToVariable>", "final", )
+        console.log("assignValueToVariable>", "type is a variable", )
         variables = {...variables, [variable]: {type, value}}
         dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2, dataStack[valueIndex].length-value.length-3)}'${variable}'${dataStack[valueIndex].slice(-1)}`;
       	return;
       }
       else if(type === "artihmeticExpression"){
+      console.log("assignValueToVariable>", "type is a artihmeticExpression", )
         variables = {...variables, [variable]: {type, value, space: 4}}
+        dataStack[variableIndex] = `${variable}: \t.word\t0`
         return;
       }
       else if(type === "stringConcatenation"){
+      console.log("assignValueToVariable>", "type is a stringConcatenation", )
         variables = {...variables, [variable]: {type: "string", value, space: calculateMinSpaceNeeded(value, variable)}}
         dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value, variable)} #{enter a more exact space for variable: '${variable}'}`
         return;
       }
       else if(value && value.token === "input"){
+      console.log("assignValueToVariable>", "type is a input", )
       	 dataStack[variableIndex] = `${variable}: \t.space\t${60} #{enter a more exact space for variable: '${variable}'}`
          variables = {...variables, [variable]: {type: "string", value, space: 60}} //assumed input size
          return;
       }
       else{
-      console.log("assignValueToVariable>", "entered else")
+      console.log("assignValueToVariable>", "type is of string or int")
         if(variableIndex !== -1){
             newVal =  
                 type ==="string"  ? `${variable}: \t.asciiz\t"${value}"` :
                 type ==="int" ? `${variable}: \t.word\t${value ? value : 0} ` :
                 "noTypeYet";
-            console.log("setting up newVal", newVal)
+            console.log("assignValueToVariable> type is a:", newVal)
         }
         if(newVal !== "noTypeYet"){
-        console.log("newVal", newVal)
             variables = {...variables, [variable]: {type, value, space: type === "string" ? calculateMinSpaceNeeded(value, variable) : 4}} //4 bytes = word
             dataStack[variableIndex] = newVal
         }
+        else{console.log("assignValueToVariable> not sure what this is:", variable)}
       }
       //console.log('type', newVal)
     }
 
     else{
       //variable already in datastack
-    	console.log("what am i doing here")
-    	if(type === "stringConcatenation" || type === "string"){
-            console.log("assignValueToVariable>", dataStack)
+    	console.log("assignValueToVariable> variable has been assigned before")
+        console.log("assignValueToVariable>", dataStack)
         	const initialDeclarationIndex = functionStack.findIndex(elem => elem.properties.variable === variable)
             functionStack[initialDeclarationIndex] = {...functionStack[initialDeclarationIndex], properties:{...functionStack[initialDeclarationIndex].properties, value: {...functionStack[initialDeclarationIndex].properties.value, initialDeclaration: false }}}
         	const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
         	console.log("assignValueToVariable>", variableIndex)
-            dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value, variable)} #{enter a more exact space for variable: '${variable}'}`
+            dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value ? value : 4, variable)} #{enter a more exact space for variable: '${variable}'}`
+    	if(type === "int" || type === "artihmeticExpression"){
+            variables = {...variables, [variable]: {type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable)}}
+            console.log(dataStack)
+            console.log(variables)
+        }
+		if(type === "stringConcatenation" || type === "string"){
             variables = {...variables, [variable]: {type: "string", value, space: calculateSpaceNeeded(value, variable)}}
             console.log(dataStack)
             console.log(variables)
         }
-            console.log("assignValueToVariable>", "variables", variable, type, value, variables)
+            console.log("assignValueToVariable>", "variables after this assignment", variables)
       	    return -1
       }
-          console.log("assignValueToVariable>", "variables", variable, type, value, variables)
+          console.log("assignValueToVariable>", "variables after this assignment", variables)
   }
   
   function addStringToData(str){
@@ -135,8 +148,8 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
       return i - 1;
     }
   	else{ //elem in dataStack
-    console.log("found")
-    	return strIndex
+    console.log("found", strIndex)
+    	return strIndex-1
     }
   }
   
@@ -151,8 +164,42 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
   	
   }
   
+  function isInt(variable){
+    console.log("[ri]", variable)
+      if(variable.type === "int"){
+          return true;
+      }
+      else if(variable.type === "variable"){
+          console.log("[ri] - variables", variables[variable.value])
+          if(variables[variable.value].type === "int"){
+              return true;
+          }
+          else if(variables[variable.value].type === "artihmeticExpression"){
+              return true;
+          }
+      }
+      return false;
+  }
+  
+    function checkString(variable){
+    console.log("[ra]", variable)
+      if(variable.type === "string"){
+          stringPresent = true;
+          return
+      }
+      else if(variable.type === "variable"){
+          console.log("[ra] - variables", variables[variable.value])
+          if(variables[variable.value].type === "string"){
+              stringPresent = true;
+              return
+          }
+      }
+  }
+  
   function buildArtihmeticExpression(head, tail) {
+    checkString(head);
     return tail.reduce(function(result, element) {
+      checkString(element[3])
       return {
         token: "artihmeticExpression",
         properties: {        operator: element[1],
@@ -162,6 +209,52 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
       };
     }, head);
   }
+  
+  function  _inOrderArithmetic(root) {
+        const result = [];
+        const node = root
+        const traverse = function (node) {
+            if (node.properties) {
+                traverse(node.properties.left);
+                if (node.properties.left.token) {
+                    let nodeValue = node.properties.right
+                    if (!node.properties.right.token) {
+                        result.push(nodeValue) 
+                    }
+                }
+                else if (node.properties.right.token) {
+                    let nodeValue = node.properties.left
+                    result.push(nodeValue)
+                }
+                else {
+					if(node.properties.operator === "*"){
+						if(isInt(node.properties.left)){
+                        	console.log("[ri]- left is int")
+                            	for(let i=0; i<node.properties.left.value; i++){
+                                	result.push(node.properties.right);
+                                }
+						}
+						else if(isInt(node.properties.right)){
+                        	console.log("[ri]- right is int")
+                            	for(let i=0; i<node.properties.right.value; i++){
+                                	result.push(node.properties.left);
+                                }
+						}
+					}
+					else if(node.properties.operator === "+"){
+						result.push(node.properties.left);
+                        result.push(node.properties.right);
+					}
+                    else {throw Error}
+                }
+				traverse(node.properties.right);
+            }
+        };
+        traverse(node);
+        console.log("[ri]-final", result)
+        return result;
+    };
+  
 };
 
 Start
@@ -199,19 +292,23 @@ VariableAssignment
  / variable:Variable _ "+=" _ value:(strConcat: SelfStringConcat {return {...strConcat, properties:{...strConcat.properties, addedStrings: [variable, ...strConcat.properties.addedStrings]}}}) {const space = variables[variable.value].space ? variables[variable.value].space : 0; console.log("[owo]", value, variable.value); assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
     : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}) 
  }
- / variable:Variable _ "=" _ value:StringConcat {const space = variables[variable.value].space ? variables[variable.value].space : 0; console.log("[owo]", value, variable.value); assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
-    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}) 
- }
  / variable:(Variable) _ "=" _ value:ArtihmeticExpression  {
  //console.log("myVal", value)
- 	if(assignValueToVariable(variable.value, value.type, value.value) === -1) {
-      value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int"}}, }) 
-      : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })
-   }
-   else{
-      value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int", initialDeclaration: true}}, }) 
-      : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })}
-   }
+ 	if(value.token === "stringConcatenation"){
+    	console.log("[ri] we have a string concat");
+        const space = variables[variable.value].space ? variables[variable.value].space : 0; console.log("[owo]", value, variable.value); assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
+    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}) 
+    }
+ 	else{
+        if(assignValueToVariable(variable.value, value.type, value.value) === -1) {
+          value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int"}}, }) 
+          : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })
+       }
+       else{
+          value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int", initialDeclaration: true}}, }) 
+          : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })}
+       }
+	}
  / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; assignValueToVariable(variable.value, value.type, value.value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value}}) 
     : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true}}}) }
  / variable:(Variable) _ "=" _ value:Input {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; assignValueToVariable(variable.value, "string", value); functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, type: "string"}}, })}
@@ -228,7 +325,10 @@ SelfStringConcat
  = head:StringLiteral tail:(_ "+" _ str:(StringLiteral/Variable) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
  / head:Variable tail:(_ "+" _ str:(StringLiteral) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
  / head:(StringLiteral/Variable) {return {token:"stringConcatenation", properties:{addedStrings:[head]}};}
- 
+
+StringConcatExpr
+ = ""
+
 Function
  = val:IOFunction {functionStack.push(val)}
  
@@ -238,6 +338,27 @@ IOFunction
 
 IOArgs
  = CastedArgs
+ / val:ArtihmeticExpression {
+ 	if(val.token === "stringConcatenation"){
+    	return val.properties.addedStrings.map(elem => {
+        	if(elem.type === "string"){
+            	let index = addStringToData(elem.value); 
+ 				return {type:"string", value: `str${index}`}
+            }
+            else{
+            	return elem
+            }
+        })
+    }
+ 	if(val.type === "string"){
+     	let index = addStringToData(val.value); 
+ 		return {...val, value: `str${index}`}
+    }
+    else{
+    	return val
+    }
+ }
+ //everything below is not needed
  / value: Variable {return {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`} }
  / str:StringLiteral {let index = addStringToData(str.value); return {...str, value: `str${index}`}}
  / IntegerLiteral
@@ -254,8 +375,8 @@ IntIOArgs
  = "int" _ "(" _ arg:IOArgs _ ")" {return arg}
 
 Print
- = PrintToken _ "(" _ prompt:(ArtihmeticExpression/ IOArgs) _ tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, spaced:true} })* _ ")" 
- 	{return {token: "print", properties:{prompt: [prompt, ...tail]}} }
+ = PrintToken _ "(" _ prompt:(IOArgs) _ tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, spaced:true} })* _ ")" 
+ 	{return Array.isArray(prompt) ? {token: "print", properties:{prompt: [...prompt, ...tail]}} : {token: "print", properties:{prompt: [prompt, ...tail]}} }
 
 Input
  = "int" _ "(" _ prompt:InputStatement _ ")" _ { return {...prompt, type: "int"}} //may want to change to variable-int
@@ -263,7 +384,7 @@ Input
  / prompt:InputStatement { return {...prompt, type: null}}
 
 InputStatement
- = InputToken _ "(" _ prompt:(ArtihmeticExpression/ IOArgs) _  tail:("+" _ moreArgs:IOArgs _ {return moreArgs })* _ ")"
+ = InputToken _ "(" _ prompt:(IOArgs) _  tail:("+" _ moreArgs:IOArgs _ {return moreArgs })* _ ")"
  	{return {token: "input", properties:{prompt: [prompt, ...tail]}} }
 
 Comment
@@ -463,7 +584,20 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 // Accepts expressions like "2 * (3 + 4)" and computes their value.
 
 ArtihmeticExpression
- = value:ArtihmeticStart {return value.type ? value.type === "variable" ? {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`} : value : {...value, type:"artihmeticExpression"}}
+ = value:ArtihmeticStart {if (value.type) {
+     stringPresent = false;
+      if( value.type  === "variable") {
+      	return {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`}
+      }
+     else{return value} 
+ 	}
+ 	else { 
+    console.log("[ra]-string present", stringPresent);
+    const currentStringPresent = stringPresent;
+    stringPresent = false;
+    return currentStringPresent ?  {token:"stringConcatenation", properties:{addedStrings: _inOrderArithmetic(value), } , type:"stringConcat", } : {...value, type:"artihmeticExpression"} 
+    }
+ }
 
 ArtihmeticStart
   = head:ArtihmeticTerm tail:(_ ("+" / "-") _ ArtihmeticTerm)* {
@@ -477,5 +611,4 @@ ArtihmeticTerm
 
 ArtihmeticFactor
   = "(" _ expr:ArtihmeticStart _ ")" { return expr; }
-  / IntegerLiteral / Variable    
-
+  / IntegerLiteral / Variable /StringLiteral   
