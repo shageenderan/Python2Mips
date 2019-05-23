@@ -1,9 +1,10 @@
-//This file represents a backup for a old version of the parser. 
-//Last modified : 2019-05-20 04:49:15
-//[STRING CONCAT] check if variable before multilply if is, then push it twice instead of repeating
-//[STRING CONCAT] return it in the form; addedString:[ {type:"string",value:"hello" }, {type:"variable", value:"y"} ] 
+//This file is a python parser. It assumes VALID python code, most error handling is not accounted for. It is honestly such a mess
+//read on if you want to get a migraine
+//Last modified : 2019-05-24 00:08:07
 { 
-const dataStack = []; const functionStack = []; let variables = {}; var i=0; const inputs = []; let stringPresent=false;
+const dataStack = []; 
+const functionStack = []; 
+let variables = {}, stringVariables = {}, stringPresent=false, i=0;  
   function extractList(list, index) {
     return list.map(function(element) { return element[index]; });
   }
@@ -38,7 +39,8 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
         let spaceNeeded = 0
         value.properties.addedStrings.forEach(elem => {
         	if(elem.type === "string"){
-            	spaceNeeded += elem.value.length
+            	console.log("[donkey]", stringVariables[elem.value])
+            	spaceNeeded += stringVariables[elem.value].value.length
             }
             else if(elem.type === "variable"){
                 let rootElem = variables[elem.value]
@@ -141,15 +143,21 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
   }
   
   function addStringToData(str){
+  console.log("[str] looking for str:", str, " in", dataStack)
   	const strIndex = dataStack.map(elem => elem.replace(/"+/g, '')).findIndex(elem => elem.slice(-1 * str.length) === str)
+    console.log("[str] string index", strIndex)
     if (strIndex === -1){ //elem not in dataStack
+      i = dataStack.length === i+1 ? i+ 1 : dataStack.length;
       dataStack.push(`str${i}: \t.asciiz\t"${str}"`)
-      i++;
-      return i - 1;
+      console.log("[str] returning", i)
+      stringVariables = {...stringVariables, [`str${i}`]: {value: str}}
+      return {type:"string", value: `str${i}`};
     }
   	else{ //elem in dataStack
-    console.log("found", strIndex)
-    	return strIndex-1
+    console.log("[str] returning", strIndex)
+      //check if label is still strI or if has been changed
+      const strLabel = dataStack[strIndex].split(":")[0]
+      return {type:strLabel === `str${strIndex}` ? "string" : "variable", value: strLabel}
     }
   }
   
@@ -219,31 +227,67 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
                 if (node.properties.left.token) {
                     let nodeValue = node.properties.right
                     if (!node.properties.right.token) {
-                        result.push(nodeValue) 
+                       if(nodeValue.type === "string"){
+                            console.log("[str], node value", nodeValue.value)
+                           	result.push(addStringToData(nodeValue.value))
+                    	}
+                    	else{
+                    		result.push(nodeValue)
+                    	}  
                     }
                 }
                 else if (node.properties.right.token) {
                     let nodeValue = node.properties.left
-                    result.push(nodeValue)
+                    if(nodeValue.type === "string"){
+                           console.log("[str], node value", nodeValue.value)
+                           result.push(addStringToData(nodeValue.value))
+                    }
+                    else{
+                    	result.push(nodeValue)
+                    } 
                 }
                 else {
 					if(node.properties.operator === "*"){
 						if(isInt(node.properties.left)){
                         	console.log("[ri]- left is int")
                             	for(let i=0; i<node.properties.left.value; i++){
-                                	result.push(node.properties.right);
+                                  if(node.properties.right.type === "string"){
+                                      console.log("[str], node value", node.properties.right.value)
+                                      result.push(addStringToData(node.properties.right.value))
+                                  }
+                                  else{
+                                      result.push(node.properties.right);
+                                  }
                                 }
 						}
 						else if(isInt(node.properties.right)){
                         	console.log("[ri]- right is int")
                             	for(let i=0; i<node.properties.right.value; i++){
-                                	result.push(node.properties.left);
+                                    if(node.properties.left.type === "string"){
+                                      console.log("[str], node value", node.properties.left.value)
+                                      result.push(addStringToData(node.properties.left.value))
+                                  }
+                                  else{
+                                      result.push(node.properties.left);
+                                  }
                                 }
 						}
 					}
 					else if(node.properties.operator === "+"){
-						result.push(node.properties.left);
-                        result.push(node.properties.right);
+                        if(node.properties.left.type === "string"){
+                          console.log("[str], node value", node.properties.left.value)
+                        	result.push(addStringToData(node.properties.left.value))
+                        }
+                        else{
+                        	result.push(node.properties.left);
+                        }
+                        if(node.properties.right.type === "string"){
+                          console.log("[str], node value", node.properties.right.value)
+                        	result.push(addStringToData(node.properties.right.value))
+                        }
+                        else{
+                        	result.push(node.properties.right);
+                        }
 					}
                     else {throw Error}
                 }
@@ -258,7 +302,7 @@ const dataStack = []; const functionStack = []; let variables = {}; var i=0; con
 };
 
 Start
-  = _ program:Program _ {return {data:dataStack, tokens:functionStack}}
+  = _ program:Program _ {return {data:dataStack, tokens:functionStack, strings: stringVariables}}
   
 Program
   = body: SourceElements {return body}
@@ -289,24 +333,97 @@ VariableAssignmentStatement
 
 VariableAssignment
  = variable:Variable _ "=" _ 'None' {}
- / variable:Variable _ "+=" _ value:(strConcat: SelfStringConcat {return {...strConcat, properties:{...strConcat.properties, addedStrings: [variable, ...strConcat.properties.addedStrings]}}}) {const space = variables[variable.value].space ? variables[variable.value].space : 0; console.log("[owo]", value, variable.value); assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
-    : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}) 
- }
- / variable:(Variable) _ "=" _ value:ArtihmeticExpression  {
+ / variable:(Variable) _ sep:("+=" / "-=" / "*=" / "/=" /"=") _ value:ArtihmeticExpression  {
  //console.log("myVal", value)
+  if(sep !== "=" && value.type === "artihmeticExpression"){
+  	const operator = sep.split("=")[0]
+    const arValue = value
+    value = {
+               token: "artihmeticExpression",
+               properties: {
+                  operator,
+                  left: {
+                     ...variable
+                  },
+                  right: {
+                     ...value
+                  }
+               },
+               type:"artihmeticExpression",
+             }
+  }
+  if(sep === "+=" && !(value.type === "artihmeticExpression")){
+  	if(value.type === "string"){
+    	const strVal = addStringToData(value.value)
+        value = {
+            token: "stringConcatenation",
+            properties: {
+                addedStrings: [
+                    variable, strVal
+                ]
+            }
+        }
+    }
+    else if(value.type === "int"){
+    	const intVal = value
+    	value = {
+               token: "artihmeticExpression",
+               properties: {
+                  operator: "+",
+                  left: {
+                     ...variable
+                  },
+                  right: {
+                     ...intVal
+                  }
+               },
+               type:"artihmeticExpression",
+             }
+       
+    }
+    else if(value.type === "stringConcat"){
+        value = {
+        	token: "stringConcatenation",
+            properties: {
+            	addedStrings: [
+                	variable,
+                    ...value.properties.addedStrings
+                ]
+            },
+            type: "stringConcat"
+        }
+    }
+    console.log("[ru]", value, value.type)
+  }
  	if(value.token === "stringConcatenation"){
     	console.log("[ri] we have a string concat");
-        const space = variables[variable.value].space ? variables[variable.value].space : 0; console.log("[owo]", value, variable.value); assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
+        const space = variables[variable.value].space ? variables[variable.value].space : 0; 
+        console.log("[owo]", value, variable.value); 
+        assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }) 
     : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}) 
     }
  	else{
         if(assignValueToVariable(variable.value, value.type, value.value) === -1) {
-          value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int"}}, }) 
-          : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })
+          if (value.type === "string"){
+          		const space = variables[variable.value].space ? variables[variable.value].space : 0 ;
+          		functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value}})
+          }
+          else{
+          	 value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int"}}, }) 
+          	: functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })
+          }
+         
        }
        else{
-          value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int", initialDeclaration: true}}, }) 
-          : functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })}
+       	  if (value.type === "string"){
+          	const space = variables[variable.value].space ? variables[variable.value].space : 0 ;
+          	functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true}}})
+          }
+          else{
+          	value.type === "int" ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int", initialDeclaration: true}}, }) 
+          	: functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, })
+          }
+		}
        }
 	}
  / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; assignValueToVariable(variable.value, value.type, value.value) === -1 ? functionStack.push({token: "variableAssignment", properties:{variable:variable.value, space, value}}) 
@@ -317,6 +434,7 @@ VariableAssignment
  //= "function" {return "func"}
  /// FunctionToken 
 
+//This is deprecated, replaced by arithmetic expression matching to enable differing between string concat and actual artihmetic expressions
 StringConcat
  = head:StringLiteral tail:(_ "+" _ str:(StringLiteral/Variable) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
  / head:Variable tail:(_ "+" _ str:(StringLiteral) {return str})+ {return {token:"stringConcatenation", properties:{addedStrings:[head, ...tail]}};}
@@ -342,25 +460,25 @@ IOArgs
  	if(val.token === "stringConcatenation"){
     	return val.properties.addedStrings.map(elem => {
         	if(elem.type === "string"){
-            	let index = addStringToData(elem.value); 
- 				return {type:"string", value: `str${index}`}
-            }
-            else{
+            console.log("[str] ioargs node value", elem.value)
+ 				    return val;
+          }
+          else{
             	return elem
-            }
+          }
         })
     }
- 	if(val.type === "string"){
-     	let index = addStringToData(val.value); 
- 		return {...val, value: `str${index}`}
+ 	else if(val.type === "string"){
+     console.log("[str] string node value", val.value)
+ 		  return addStringToData(val.value);
     }
     else{
-    	return val
+    	return val;
     }
  }
  //everything below is not needed
  / value: Variable {return {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`} }
- / str:StringLiteral {let index = addStringToData(str.value); return {...str, value: `str${index}`}}
+ / str:StringLiteral {return addStringToData(str.value)}
  / IntegerLiteral
  / _ !(","_) {return { type: null};}
 

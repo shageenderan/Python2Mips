@@ -1,5 +1,5 @@
 import { parserOutput, textParams } from "./main";
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/",
@@ -90,6 +90,7 @@ export default class Translate {
     public translateInput(token: InputToken, addr?: string): string {
         let inputMips = "";
         token.properties.prompt.forEach(prompt => {
+            console.log("INPUT PROMPT", prompt)
             inputMips += this._translatePrintPrompt(prompt);
         })
         inputMips += this._translateInputPrompt(token.type, addr);
@@ -143,28 +144,30 @@ export default class Translate {
         }
 
         if ((token.properties.value as StringConcatenationToken).token === "stringConcatenation") {
-            // Token is an string concatenation i.e. s = "hello" + "world"
+            // Token is a string concatenation i.e. s = "hello" + "world"
             const stringConcatenationToken = token.properties.value as StringConcatenationToken;
             const variable = token.properties.variable
-            const addedStrings = stringConcatenationToken.properties.addedStrings
+            const addedStrings = (stringConcatenationToken.properties as StringConcatProperties).addedStrings 
             //check if adding variable to itself i.e. x = x + "some stuff"
             variableAssignmentMips += addedStrings[0].type === "variable" && (addedStrings[0].value === variable)
                 ? `la $s0, ${variable}\naddi $s0, $s0, ${token.properties.space - 1}\n`
                 : `la $s0, ${variable}\n`;
-                
-            variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable, token.properties.space);
-
+                    
+            variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable, token.properties.space);    
         }
 
         else if ((token.properties.value as InputToken).token === "input") {
             // Token is an input()
+            console.log("INPUT", token)
+            console.log("VARIABLE", token.properties.variable)
             const inputToken = token.properties.value as InputToken;
             variableAssignmentMips += this.translateInput(inputToken, token.properties.variable);
         }
 
         else if ((token.properties.value as ArtihmeticExpressionToken).token === "artihmeticExpression") {
             // Token is an arithmetic expression
-            const arithemeticExpression = (token.properties.value as ArtihmeticExpressionToken)
+            console.log("TRAVERSING ARITHMETIC", this._postOrderArithmetic(token.properties.value as ArtihmeticExpressionToken));
+            const arithemeticExpression = token.properties.value as ArtihmeticExpressionToken
             variableAssignmentMips += this.translateArithmetic(arithemeticExpression);
             variableAssignmentMips += `sw $t0, ${token.properties.variable}\n`
         }
@@ -173,14 +176,14 @@ export default class Translate {
 
     public translateStringConcatenation(token: StringConcatenationToken, addr: string, space?: number) {
         let mipsCode = ``;
-        token.properties.addedStrings.forEach(addedString => {
+        (token.properties as StringConcatProperties).addedStrings.forEach(addedString => {
             switch (addedString.type) {
                 case "string":
-                    mipsCode += `${this._storeStringInMips(addedString.value as string, addr)}`
+                    mipsCode += `${this._concatVariableMips(addedString.value as string, addr)}`
                     break;
                 //update to variable-string and variable-int
                 case "variable":
-                    mipsCode += token.properties.addedStrings.indexOf(addedString) === 0 && addedString.value === addr
+                    mipsCode += (token.properties as StringConcatProperties).addedStrings.indexOf(addedString) === 0 && addedString.value === addr
                         ? `` // skip adding the same value
                         : this._concatVariableMips(addedString.value as string, addr)
                     break;
@@ -256,6 +259,7 @@ export default class Translate {
                 current += 1, next = null;
             }
         }
+        console.log("ORDERING", mipsCode.map(elem => this._translateArithmeticOperation(elem, availRegisters[currentRegister + 1])).join(""))
         return mipsCode.map(elem => this._translateArithmeticOperation(elem, availRegisters[currentRegister + 1])).join("");
     }
 
@@ -375,7 +379,7 @@ export default class Translate {
     }
 
     /** Traverses through a parsed arithmetic sequence and returns a more readable result in the correct order */
-    private _postOrderArithmetic(root: ArtihmeticExpressionToken): Array<{ operator: "+" | "-" | "*" | "/", left: any, right: any }> {
+    private _postOrderArithmetic(root: ArtihmeticExpressionToken | StringConcatenationToken): Array<{ operator: "+" | "-" | "*" | "/", left: any, right: any }> {
         const result = [];
         const node = root
         //not typed to avoid the headache of having to cast each node value
@@ -383,14 +387,14 @@ export default class Translate {
             if (node.properties) {
                 traverse(node.properties.left);
                 traverse(node.properties.right);
-                if (node.properties.left.token === "artihmeticExpression") {
+                if (node.properties.left.token) {
                     let nodeValue = { operator: node.properties.operator, left: "prevVal", right: node.properties.right }
-                    if (node.properties.right.token === "artihmeticExpression") {
+                    if (node.properties.right.token) {
                         nodeValue = { ...nodeValue, right: "nextVal" }
                     }
                     result.push(nodeValue)
                 }
-                else if (node.properties.right.token === "artihmeticExpression") {
+                else if (node.properties.right.token) {
                     let nodeValue = { operator: node.properties.operator, left: node.properties.left, right: "nextVal" }
                     result.push(nodeValue)
                 }

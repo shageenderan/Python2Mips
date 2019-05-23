@@ -24,14 +24,23 @@ To Do
     -[RESTRICTING] Fix string concatenation translation going into an infinite loop when variable is set on the right. i.e. x = "world" + x. (might end up restricting this)
  [DONE] Add support for dynamic variable types
  [DONE] Add support to dynamically allocate space for strings of known length/Integers/ArtihmeticExpressions. 
+ [DONE] Differentiate between assigning string variables and int variables during variable assignment. i.e. z = x + y, should return 
+    -[FIXED] As handling is done in string concat token, string concat will only look at  the '+' operator, resulting in every other operator being ignored
+     possible fix: see if swapping positions of arithmetic will match(but this might remove previous functionality)
+ [DONE] Add support for returning ArtihmeticExpression if x and y are int variables but return StringConcatenation if x and y are string variables. This will also
+ [DONE] fix not being able to mix multiple variables consecutively during string concatenation.
+ [DONE] fix how variable assignment for strings is being handled; a string should only be read in char-by-char if it is reassigned later on, i.e.: x = "hello"; y="am i doing something wrong?"; print(x); x = "hello young luke skywalker" + " " + y; print(x); print(y); x = "reset"; print(x)
+ [DONE] Add support for adding self into an ArtihmeticExpression, i.e. x = 10; x += 1;
 
-
-Important
- - Differentiate between assigning string variables and int variables during variable assignment. i.e. z = x + y, should return 
- ArtihmeticExpression if x and y are int variables but return StringConcatenation of x and y are string variables. This will also
- fix not being able to mix multiple variables consecutively during string concatenation.
+Important 
+ - Change whitespace being added to data section [optional, might want to keep it that way?]
+ - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. in memory not x: .space 4.
  - Unit tests for string concatenations 
- - if/else loops
+ - if/else conditions
+ - for loops
+ - while loops
+ - arrays
+ - functions
  - translation for comments
  - parse prompts for numbers to get insight on how much space to allocate to a input variable. i.e. x = input("Enter name(max 60 chars)")
   will return 60 as space for x
@@ -62,9 +71,16 @@ Not Supporting:
   possible fix: declaring a temp label in .data of a large size to store this variable in before concatenating everything. 
     pros: easy to implement
     cons: possible huge waste of memory
-2) floating point numbers
+2) brackets in string concatenation. i.e.:
+    x = "hello"*2 + "world"*2
+    [VALID]
+    c = ("hello" + "world")*2
+    [NOT VALID]
+    reason: similar to above, need to store bracket expressions somewhere before continuing
+
+3) floating point numbers
   reason: out of scope
-3) classes
+4) classes
   reason: out of scope
-4) file manipulation(for now, might change)
+5) file manipulation(for now, might change)
   reason: out of scope

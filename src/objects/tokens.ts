@@ -7,21 +7,26 @@ export class DataObject {
     spaced?: boolean;
 }
 
+export interface StringConcatProperties{
+    addedStrings: Array<DataObject>;
+}
+
+export interface ArtihmeticExpressionProperties{
+    operator: "+" | "-" | "*" | "/";
+    left: ArtihmeticExpressionToken | DataObject;
+    right: ArtihmeticExpressionToken | DataObject; 
+}
+
 export class StringConcatenationToken {
     token: string;
-    properties: {
-        addedStrings: Array<DataObject>;
-    }
+    properties: StringConcatProperties
+
 }
 
 export class ArtihmeticExpressionToken {
     token: string;
     type: string;
-    properties: {
-        operator: "+" | "-" | "*" | "/";
-        left: ArtihmeticExpressionToken | DataObject;
-        right: ArtihmeticExpressionToken | DataObject;  
-    }
+    properties: ArtihmeticExpressionProperties
 }
 
 export class PrintToken {

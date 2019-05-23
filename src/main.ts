@@ -12,7 +12,9 @@ const testVarAssign = `name = input('Enter name (max 60 chars): ')\nprint('Hello
 const testVarAssignComplex = `temp_C = int(input('Enter temperature in Celsius '))\ntemp_F = int(9*temp_C/5 + 32)\nprint('Temperature in Fahrenheit is ' + str(temp_F))`
 const testStrConcat = `x = "hello"; y="am i doing something wrong?"; print(x); x = "hello young luke skywalker" + " " + y; print(x); print(y); x = "reset"; print(x)`
 const testSaveSpaceStrConcat = `x="hello";print("initial x:", x);x += " world"; print("Final x:", x)`
-const testChangingVarTypes = `x=3; print(x); x=x+2*5; print(x); x="hello"; print(x)`
+const testChangingVarTypes = `x=3; print(x); x=x+2*5; print(x); Y="hello"; print(Y)`
+const testNewStringCOncat = `x="hello"; y="world"; x = x + y*2 +"WOW"*4; print(x); x=2;y=2; x = x+y*2; print(x)`
+const testBug = `x = "hello"; y="am i doing something wrong?"; print(x); x = "hello young luke skywalker" + " " + y; print(x); print(y); x = "reset"; print(x + "am i doing something wrong?" + " ")`
 
 export interface textParams {
     token: PrintToken | InputToken | ArtihmeticExpressionToken | VariableAssignmentToken
@@ -27,7 +29,7 @@ export interface parserOutput {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(testSaveSpaceStrConcat) as parserOutput;
+    const sampleOutput: parserOutput = parse(testChangingVarTypes) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []
@@ -35,7 +37,7 @@ try {
         // console.log("token: ", elem)
         let translated = pyTranslator.translate(elem)
         text.push(translated.mipsCode)
-        functions.push(translated.functions)
+        functions.push(...translated.functions)
     })
     console.log(sampleOutput.data)
     console.log(text)
