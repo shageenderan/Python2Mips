@@ -5,7 +5,7 @@ import { mipsFunctions } from './mipsFunction';
 
 const testStringPrint = `x = 2;\nprint(x+2)\nx=input("type something:"); print(x)`
 const testPrint = `print(2)\nprint("hello")\nprint("hello", "world")\nprint(2+2)\nprint(9*30/5 + 32)`
-const testArPrint = `print(9*30/5 + 32)`
+const testArPrint = `print(2 + (9*30/5 + 32))`
 const testInput = `x = int(input("enter a number: "))\nprint("adding 10 to your number:", x)\nx=10 + x\nprint(x)`
 const testSimpleInput = `input()`
 const testVarAssign = `name = input('Enter name (max 60 chars): ')\nprint('Hello ' + name)\nage = int(input("enter your age"))\nprint(age)`
@@ -29,7 +29,7 @@ export interface parserOutput {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(testChangingVarTypes) as parserOutput;
+    const sampleOutput: parserOutput = parse(testBug) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []

@@ -1,6 +1,6 @@
 {
     "name": "python2mips",
-    "version": "0.0.1",
+    "version": "0.3.1",
     "description": "converts python src code to mips",
     "main": "",
     "author": "Shageenderan Sapai",

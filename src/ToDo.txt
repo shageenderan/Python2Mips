@@ -37,6 +37,17 @@ Important
  - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. in memory not x: .space 4.
  - Unit tests for string concatenations 
  - if/else conditions
+   [DONE] parse if/else
+   - write tokens for if/else, example:
+            n = int(input("Enter int: "))
+            if "hello" == "hello":
+              print("Negative")
+              print("donkey")
+            else:
+              print("no hello")
+
+            print("no-if")
+
  - for loops
  - while loops
  - arrays

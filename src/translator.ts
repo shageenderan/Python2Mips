@@ -2,7 +2,7 @@ import { parserOutput, textParams } from "./main";
 import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
-    operator: "+" | "-" | "*" | "/",
+    operator: "+" | "-" | "*" | "/" | "%" | "//",
     finalRegister: string,
     overwriteRegister: boolean;
     left: { type: string, value: string | number },
@@ -283,6 +283,12 @@ export default class Translate {
             case "/":
                 mipsCode += this._arithmeticOperationToString("div", mipsOperation, freeRegister)
                 break;
+            case "//":
+                mipsCode += this._arithmeticOperationToString("div", {...mipsOperation, operator: "/"}, freeRegister)
+                break;
+            case "%":
+                mipsCode += this._arithmeticOperationToString("div", mipsOperation, freeRegister)
+                break;     
             default:
                 break;
         }
@@ -370,6 +376,47 @@ export default class Translate {
                 }
 
                 mipsCode += `${operatorString} ${leftRegister}, ${rightRegister}\nmflo ${mipsOperation.finalRegister}\n`
+
+            }
+        }
+        else if (mipsOperation.operator === "%") {
+            if (mipsOperation.left.type === "register" && mipsOperation.right.type === "register") {
+                mipsCode += `${operatorString} ${mipsOperation.left.value}, ${mipsOperation.right.value}\nmflo ${mipsOperation.finalRegister}\n`
+            }
+            else {
+                //left
+                if (mipsOperation.left.type === "variable") {
+                    mipsCode += `lw ${leftRegister}, ${mipsOperation.left.value}\n`
+                }
+                else if (mipsOperation.left.type === "int") {
+                    mipsCode += `li ${leftRegister}, ${mipsOperation.left.value}\n`
+                }
+                else if (mipsOperation.left.type === "register") {
+                    leftRegister = mipsOperation.left.value as string
+                }
+                //right
+                if (mipsOperation.left.type === "register") {
+                    if (mipsOperation.right.type === "variable") {
+                        mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "int") {
+                        mipsCode += `li ${freeRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    rightRegister = freeRegister;
+                }
+                else {
+                    if (mipsOperation.right.type === "variable") {
+                        mipsCode += `lw ${rightRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "int") {
+                        mipsCode += `li ${rightRegister}, ${mipsOperation.right.value}\n`
+                    }
+                    else if (mipsOperation.right.type === "register") {
+                        rightRegister = mipsOperation.right.value as string
+                    }
+                }
+
+                mipsCode += `${operatorString} ${leftRegister}, ${rightRegister}\nmfhi ${mipsOperation.finalRegister}\n`
 
             }
 
