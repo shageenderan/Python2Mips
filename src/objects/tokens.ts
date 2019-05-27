@@ -7,14 +7,64 @@ export class DataObject {
     spaced?: boolean;
 }
 
-export interface StringConcatProperties{
+export class Token {
+    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement";
+    type?: string;
+    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties
+}
+
+export interface StringConcatProperties {
     addedStrings: Array<DataObject>;
 }
 
-export interface ArtihmeticExpressionProperties{
+export interface ArtihmeticExpressionProperties {
     operator: "+" | "-" | "*" | "/";
     left: ArtihmeticExpressionToken | DataObject;
-    right: ArtihmeticExpressionToken | DataObject; 
+    right: ArtihmeticExpressionToken | DataObject;
+}
+
+export interface IOTokenProperties {
+    prompt: Array<DataObject | ArtihmeticExpressionToken>;
+}
+
+export interface VariableAssignmentProperties {
+    variable: string;
+    value: DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken;
+
+    /** indicates the space taken by this variable(including the null terminator '\0') BEFORE this variable assignment */
+    space?: number;
+}
+
+export interface IfCondition {
+    left: Token | DataObject;
+    comparision: "<" | "<=" | ">" | ">=" | "==" | "!=";
+    right: Token | DataObject;
+}
+
+export interface IfTokenProperties {
+    condition: IfCondition;
+    body: Array<Token | DataObject>
+    alternate: Array<Token | DataObject>
+}
+
+export class PrintToken {
+    token: string;
+    properties: IOTokenProperties;
+}
+
+export class InputToken {
+    token: string;
+    type: "int" | "string" | null;
+    properties: IOTokenProperties;
+}
+
+export class VariableAssignmentDataObject extends DataObject {
+    initialDeclaration: boolean;
+}
+
+export class VariableAssignmentToken {
+    token: string;
+    properties: VariableAssignmentProperties;
 }
 
 export class StringConcatenationToken {
@@ -29,35 +79,7 @@ export class ArtihmeticExpressionToken {
     properties: ArtihmeticExpressionProperties
 }
 
-export class PrintToken {
-    token : string;
-    properties: {
-        prompt: Array< DataObject | ArtihmeticExpressionToken >;
-    }
-
-}
-
-export class InputToken {
+export class IfToken {
     token: string;
-    type: "int" | "string" | null;
-    properties: {
-        prompt: Array< DataObject | ArtihmeticExpressionToken >;
-    }
+    properties: IfTokenProperties;
 }
-
-export class VariableAssignmentDataObject extends DataObject{
-    initialDeclaration: boolean;
-}
-
-export class VariableAssignmentToken {
-    token: string;
-    properties: {
-        variable: string;
-        value: DataObject |  ArtihmeticExpressionToken | InputToken | StringConcatenationToken;
-
-        /** indicates the space taken by this variable(including the null terminator '\0') BEFORE this variable assignment */
-        space?: number;
-    }
-}
-
- 
