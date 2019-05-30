@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-05-24 00:08:07
+//Last modified : 2019-05-30 23:55:23
 
 {
 
@@ -479,23 +479,25 @@ IOFunction
 IOArgs
   = CastedArgs
   / val:ArtihmeticExpression {
-                            if(val.token === "stringConcatenation"){
-                             return val.properties.addedStrings.map(elem => {
-                             if(elem.type === "string"){
+      if(val.token === "stringConcatenation"){
+          return val.properties.addedStrings.map(elem => {
+          if(elem.type === "string"){
               console.log("[str] ioargs node value", elem.value)                                              
               return val;
-            }
-            else{
-                             return elem
-            }        
+          }
+          else{
+                  return elem
+              }        
           })
       }
-                            else if(val.type === "string"){
-       console.log("[str] string node value", val.value)
-                                                          return addStringToData(val.value);
+
+      else if(val.type === "string"){
+          console.log("[str] string node value", val.value)
+          return addStringToData(val.value);
       }
+
       else{
-                             return val;
+          return val;
       }
   }
   //everything below is not needed
@@ -537,7 +539,51 @@ Comparison
 
 BooleanExpression
   = "True" / "False"
-  / left:ArtihmeticExpression _ comparison:Comparison _ right:ArtihmeticExpression {return {left, comparison, right}}
+  / __ __ left:ArtihmeticExpression __ _ comparison:Comparison _  __ right:ArtihmeticExpression __ __ {
+  let leftReturn, rightReturn; 
+    if(left.token === "stringConcatenation"){
+            leftReturn = left.properties.addedStrings.map(elem => {
+            if(left.type === "string"){
+                console.log("[str] ioargs node value", left.value)                                              
+                return left;
+            }
+            else{
+                    return elem
+                }        
+            })
+        }
+
+      else if(left.type === "string"){
+          console.log("[str] string node value", left.value)
+          leftReturn = addStringToData(left.value);
+      }
+
+      else{
+          leftReturn =  left;
+      }
+      
+      if(right.token === "stringConcatenation"){
+            rightReturn = right.properties.addedStrings.map(elem => {
+            if(right.type === "string"){
+                console.log("[str] ioargs node value", right.value)                                              
+                return right;
+            }
+            else{
+                    return elem
+                }        
+            })
+        }
+
+      else if(right.type === "string"){
+          console.log("[str] string node value", right.value)
+          rightReturn = addStringToData(right.value);
+      }
+
+      else{
+          rightReturn =  right;
+      }
+      
+  return {left: leftReturn, comparison, right: rightReturn}}
 
 ChainedBooleanExpression
   = head:(NegatedBooleanExpression/BooleanExpression)
@@ -553,14 +599,14 @@ IfCondition
  
 IfStatement
 	= IfToken _ condition:IfCondition _ ":"  _"\n"
-      body:([ \t\r]* statement:Statement (_"\n"/ ";") {return statement})* 
-    ElseToken _ ":" _"\n"
-      alternate: ([ \t\r]* statement:Statement (_"\n"/ ";") {return statement})* 
-   {return {token: "ifStatement", condition, body, alternate}}
+      body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
+    [ \t\r]*ElseToken _ ":" _"\n"
+      alternate: ([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
+   {return {token: "ifStatement", properties: {condition, body, alternate}} }
    
    / IfToken _ condition:IfCondition _ ":"  _"\n"
-      body:([ \t\r]* statement:Statement (_"\n"/ ";") {return statement})* 
-   {return {token: "ifStatement", condition, body, alternate: null}}
+      body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
+   {return {token: "ifStatement", properties: {condition, body, alternate: null}} }
    
 Comment
 	= value:$("#" _ ((VariableName/[/.,';?><":()0-9]) _)* _) {functionStack.push({token: "comment", value: value.slice(1)})}
@@ -715,7 +761,10 @@ HexDigit
 //skipped
 _ "whitespace"
   = [ \t\r]*
- 
+
+__ "whitespace or round bracket"
+ = "(" / ")" / _
+
 EOF
   = !.
   

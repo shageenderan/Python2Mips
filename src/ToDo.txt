@@ -31,22 +31,24 @@ To Do
  [DONE] fix not being able to mix multiple variables consecutively during string concatenation.
  [DONE] fix how variable assignment for strings is being handled; a string should only be read in char-by-char if it is reassigned later on, i.e.: x = "hello"; y="am i doing something wrong?"; print(x); x = "hello young luke skywalker" + " " + y; print(x); print(y); x = "reset"; print(x)
  [DONE] Add support for adding self into an ArtihmeticExpression, i.e. x = 10; x += 1;
+ [DONE] parse if/else
+ [DONE] write tokens for if/else
 
 Important 
  - Change whitespace being added to data section [optional, might want to keep it that way?]
  - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. in memory not x: .space 4.
  - Unit tests for string concatenations 
  - if/else conditions
-   [DONE] parse if/else
-   - write tokens for if/else, example:
-            n = int(input("Enter int: "))
-            if "hello" == "hello":
-              print("Negative")
-              print("donkey")
-            else:
-              print("no hello")
-
-            print("no-if")
+    - write string comparision
+    - update strCmp function to ignore trailing newlines
+    - update parser to only add string if string.length > 1. For strings length < 1, return type "characters" instead
+    - Add support for unaryBooleanExpressions, i.e. "if x" as well as things like "if x (is or ==) True"
+    - Add a 'type' to if conditions to help distinguish between binary, unaryBooleanExpression and Chained boolean expressiosn
+    - Translate unaryBooleanExpression and Chained boolean expressions (binary has been done)
+    - Update parser to automatically negate parsed expressions. i.e. 
+        if !True should parse: if False 
+        if !(x > 3) should parse: if x <= 3
+    - write translations for if tokens
 
  - for loops
  - while loops
@@ -60,6 +62,8 @@ Important
 Small/Optional
  - Add function to reduce print/ input args. i.e. print("hello" + "world") reduces to print("hello world") or print(3 + 3) 
    reduces to print(6)
+ - Refactor translating arithmetics to take in an optional variable "register" which will dictate the final register to place the
+   value instead of the default $t0.
 
 Not Supporting:
 1) concatentaing a string with itself at a position that is not 0 i.e.:

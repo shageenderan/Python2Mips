@@ -37,7 +37,7 @@ export interface VariableAssignmentProperties {
 
 export interface IfCondition {
     left: Token | DataObject;
-    comparision: "<" | "<=" | ">" | ">=" | "==" | "!=";
+    comparison: "<" | "<=" | ">" | ">=" | "==" | "!=";
     right: Token | DataObject;
 }
 
