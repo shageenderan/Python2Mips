@@ -54,8 +54,17 @@ blt     $t3,$t4,lower           #if str1 < str2 -> str1 is lower
 bgt     $t3,$t4,higher          #if str1 > str2 -> str1 is higher
 addi    $t1,$t1,1               #t1 points to the next byte of str1
 addi    $t2,$t2,1               #t2 points to the next byte of str2
-lb	$t5, 0($t1)
-lb	$t6, 0($t2)
+#checking for user input as user input will have an extra "\\n" at the end.
+lb      $t5, 0($t1)
+lb      $t6, 0($t2)
+xor 	$t0, $t5, $t6		    #check if (t5 == 10 and t6 == 0) or (t5 == 0 and t6 == 10) Note: 10 = ASCII for '\\n'
+li 	    $t7, 10
+beq 	$t0, $t7, checknewline
+j       loop
+
+checknewline:
+beq     $t5, $t7, stringonenewline		#str1 has a newline so check the next letter of str1
+beq     $t6, $t7, stringtwonewline		#str2 is a newline so check the next letter of str2
 j       loop
 
 checklower:
@@ -72,6 +81,18 @@ jr      $ra
 
 higher:
 li      $v0,1
-jr      $ra\n
+jr      $ra
+
+stringonenewline:
+addi    $t1,$t1,1               #t1 points to the next byte of str1
+lb      $t5, 0($t1)
+beqz 	$t5, equal		        #check if at end of string
+j 	    higher
+
+stringtwonewline:
+addi    $t2,$t2,1               #t2 points to the next byte of str2
+lb      $t6, 0($t2)
+beqz 	$t6, equal		        #check if at end of string
+j 	    lower\n
 `,
 }
