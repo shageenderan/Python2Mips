@@ -6,8 +6,8 @@ export const mipsFunctions = {
 #   None, but $s0 is updated to end of destination string buffer
 #
 # arguments:
-#   a0 -- pointer to destination buffer
-#   a1 -- pointer to source buffer
+#   a0 -- address of destination buffer
+#   a1 -- address of source buffer
 #
 # clobbers:
 #   v0 -- current char
@@ -35,15 +35,14 @@ jr      $ra                     # return\n
 #      -- -1 if a < b
 #
 # arguments:
-#   a0 -- pointer to first string(a)
-#   a1 -- pointer to second string(b)
+#   a0 -- address of first string  (a)
+#   a1 -- address of second string (b)
 #
 # clobbers:
 #   v0 -- current char
-strcmp:
-add     $t0,$zero,$zero         # t0=0
-add     $t1,$zero,$a0           # t1=first string address
-add     $t2,$zero,$a1           # t2=second string address
+strCmp:
+add     $t1,$0,$a0           # t1=first string address
+add     $t2,$0,$a1           # t2=second string address
 
 loop:
 lb      $t3,0($t1)              #load a byte from string 1
@@ -95,4 +94,34 @@ lb      $t6, 0($t2)
 beqz 	$t6, equal		        #check if at end of string
 j 	    lower\n
 `,
+    strEmpty:
+`
+# strEmpty -- checks if a string is empty
+#
+# RETURNS:
+#   v0 --  1 if string is empty
+#      --  0 otherwise
+#
+#
+# arguments:
+#   a0 -- address of string to check
+#
+strEmpty:
+lb      $t0,0($a0)              #load first char from string 
+beqz    $t0, isEmpty
+li      $t1, 10
+bne     $t0, $t1, notEmpty      #check if string is only a newline
+lb      $t0,1($a0)              #load second char from string 
+beqz    $t0, isEmpty
+j       notEmpty
+
+isEmpty:
+li      $v0, 1
+jr      $ra
+
+notEmpty:
+li      $v0, 0
+jr      $ra
+`,
+
 }
