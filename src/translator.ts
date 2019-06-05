@@ -1,5 +1,4 @@
-import { parserOutput, textParams } from "./main";
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -13,8 +12,12 @@ interface parsedMipsArithmetic {
 export default class Translate {
 
     functions: Array<string> = [];
+    /** Current if statement */
+    ifCounter: number = -1;
+    /** Stack to keep track of if statements being used, especially when nested */
+    ifStack: Array<number> = [];
 
-    public translate = (pyCode: PrintToken | InputToken | ArtihmeticExpressionToken | VariableAssignmentToken) => {
+    public translate = (pyCode: Token) => {
         let mipsCode = ""
         switch (pyCode.token) {
             case "print":
@@ -29,8 +32,10 @@ export default class Translate {
             case "artihmeticExpression":
                 mipsCode += this.translateArithmetic(pyCode as ArtihmeticExpressionToken);
                 break;
+            case "ifStatement":
+                mipsCode += this.translateIfStatement(pyCode as IfToken);
             default:
-                mipsCode += "#some other code\n";
+                //mipsCode += "#some other code\n";
                 break;
         }
         return { mipsCode, functions: this.functions };
@@ -133,6 +138,15 @@ export default class Translate {
                     case "int":
                         variableAssignmentMips += `li $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
                         break;
+                    case "variable-int":
+                        variableAssignmentMips += `lw $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
+                        break;
+                    case "variable-artihmeticExpression":
+                        variableAssignmentMips += `lw $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
+                        break;
+                    case "variable-string":
+                        variableAssignmentMips += `la $s0, ${token.properties.variable}\nadd $a0, $s0, $0\nla $a1, ${dataObjToken.value}\njal strConcat\n`
+                        break;
                     default:
                         break;
                 }
@@ -147,13 +161,13 @@ export default class Translate {
             // Token is a string concatenation i.e. s = "hello" + "world"
             const stringConcatenationToken = token.properties.value as StringConcatenationToken;
             const variable = token.properties.variable
-            const addedStrings = (stringConcatenationToken.properties as StringConcatProperties).addedStrings 
+            const addedStrings = (stringConcatenationToken.properties as StringConcatProperties).addedStrings
             //check if adding variable to itself i.e. x = x + "some stuff"
             variableAssignmentMips += addedStrings[0].type === "variable" && (addedStrings[0].value === variable)
                 ? `la $s0, ${variable}\naddi $s0, $s0, ${token.properties.space - 1}\n`
                 : `la $s0, ${variable}\n`;
-                    
-            variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable, token.properties.space);    
+
+            variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable, token.properties.space);
         }
 
         else if ((token.properties.value as InputToken).token === "input") {
@@ -191,7 +205,7 @@ export default class Translate {
                     break;
             }
         })
-        mipsCode += `li $s0, 0` //resetting saved register.
+        mipsCode += `li $s0, 0\n` //resetting saved register.
         return mipsCode;
         //console.log("**********************************************************\n", mipsCode, "\n**********************************************************");
     }
@@ -212,9 +226,256 @@ export default class Translate {
         return storeStringMips;
     }
 
+    /** Translates if statements(including corresponding else) to mips code */
+    public translateIfStatement(token: IfToken) {
+        this.ifStack.push(++this.ifCounter)
+        let mipsCode = `#if${this.ifCounter}\n`;
+        console.log("if", token);
+        mipsCode += this.translateIfCondition(token.properties.condition, token.properties.alternate ? true : false);
+        mipsCode += this.translateIfBody(token.properties.body);
+        const ifCounter = this.ifStack.pop()
+        if(token.properties.alternate){
+            mipsCode += `j exit${ifCounter}\n\n`
+            mipsCode += `else${ifCounter}:\n`;
+            mipsCode += this.translateIfBody(token.properties.alternate);
+        }
+        mipsCode += `\nexit${ifCounter}: `;
+        return mipsCode;
+    }
 
+    /** Check if two items are of the same type.
+     * Note that all arithmeticExpressions == ints and variables of known types are equal to the type of the corresponding literals. i.e.
+     * x = 10 and 15 should both be identified as ints
+     */
+    private _isSameType(val1: DataObject | ArtihmeticExpressionToken, val2: DataObject | ArtihmeticExpressionToken) {
+        if (val1.type.includes("string") && val2.type.includes("string")) {
+            return true
+        }
+        else if (val1.type.includes("int") && val2.type.includes("int")) {
+            return true
+        }   
+        else if (val1.type.includes("int") && val2.type === "artihmeticExpression") {
+            return true
+        }
+        else if (val1.type === "artihmeticExpression" && val2.type.includes("int")) {
+            return true
+        }
+        else if (val1.type === "artihmeticExpression" && val2.type === "artihmeticExpression") {
+            return true
+        }
+        else{
+            return false    
+        }
+    }
 
-    /** Translates arithemetic tokens to mips code */
+    /** Translates an if condition to equivalent mips code */
+    public translateIfCondition(condition: IfCondition, alternatePresent: boolean): string {
+        let ifConditionMips = ""
+        const jumpTo = alternatePresent ? "else" : "exit"
+        switch (condition.type) {
+            case "unaryBoolean":
+                ifConditionMips += this._translateUnaryBoolean(condition);
+                ifConditionMips += `${jumpTo}${this.ifCounter}\n`
+                break;
+            case "binaryBoolean":
+                if (!this._isSameType(condition.left as DataObject, condition.right as DataObject)) {
+                    ifConditionMips += `#This condition is comparing objects of types ${condition.left.type} and ${condition.right.type} and will never evaluate to true as comparands are of different types hence, the program just skips it\n
+                    j ${jumpTo}${this.ifCounter}\n`
+                }
+                else{
+                    ifConditionMips += this._translateBinaryBoolean(condition)
+                    ifConditionMips += `${jumpTo}${this.ifCounter}\n`
+                }
+                break;
+            case "chainedBoolean":
+                ifConditionMips += this._translateChaninedBoolean(condition);
+            default:
+                break;
+        }
+        return ifConditionMips;
+    }
+
+    /** Translates chained if conditions i.e. if x and y: ... to mips code */
+    private _translateChaninedBoolean(condition: IfCondition): string {
+        let ifChainedBoolean = ""
+        return ifChainedBoolean;
+    }
+
+    /** Translates unary if conditions i.e. if x: ... to mips code */
+    private _translateUnaryBoolean(condition: IfCondition): string {
+        let ifUnaryBoolean = ""
+        ifUnaryBoolean += this._translateIfConditionComparand(condition.comparison as DataObject, "$t0")
+        switch ((condition.comparison as DataObject).type) {
+            case "int":
+                ifUnaryBoolean += `beq $t0, $0, `
+                break;
+            case "string":
+                ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbne $v0, $0, `
+                this.functions.push('strEmpty')
+                break;
+            case "variable-int":
+                ifUnaryBoolean += `beq $t0, $0, `
+                break;       
+            case "variable-artihmeticExpression":
+                ifUnaryBoolean += `beq $t0, $0, `
+                break;     
+            case "variable-string":
+                ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbne $v0, $0, `
+                this.functions.push('strEmpty')
+                break;
+            default:
+                break;
+        }
+        return ifUnaryBoolean;
+    }
+
+    /** Translates binary if conditions i.e. if x > y: ... to mips code */
+    private _translateBinaryBoolean(condition: IfCondition): string{
+        let ifBinaryBoolean = ""
+        //comparands are of the same type
+        if (condition.left.type.includes("string")){
+            //comparands are of type string
+            const leftComparand = this._translateIfConditionComparand(condition.left, '$a0')
+            const rightComparand = this._translateIfConditionComparand(condition.right, '$a1')
+
+            ifBinaryBoolean += leftComparand + rightComparand + 'jal strCmp\n'
+            this.functions.push('strCmp');
+            //strCmp will return v0 as 0 if a == b, 1 if a>b, -1 if a<b hqandle cases based on that
+            switch (condition.comparison) {
+                case "<":
+                    ifBinaryBoolean += `li $t2, -1\nbne $v0, $t2, `
+                    break;
+                case "<=":
+                    ifBinaryBoolean += `li $t2, 1\nbeq $v0, $t2, `
+                    break;
+                case ">":
+                    ifBinaryBoolean += `li $t2, 1\nbne $v0, $t2, `
+                    break;
+                case ">=":
+                    ifBinaryBoolean += `li $t2, -1\nbeq $v0, $t2, `
+                    break;
+                case "==":
+                    ifBinaryBoolean += `bne $v0, $0, `
+                    break;
+                case "!=":
+                    ifBinaryBoolean +=`beq $v0, $0, `
+                    break;
+            
+                default:
+                    break;
+            }
+        }
+
+        else {
+            //left comparand is stored in $t1
+            const leftComparand = this._translateIfConditionComparand(condition.left, '$t1')
+            console.log("left", leftComparand)
+            //right comparand is stored in $t2
+            const rightComparand = this._translateIfConditionComparand(condition.right, '$t2')
+            console.log("right", rightComparand)
+            ifBinaryBoolean += leftComparand + rightComparand
+        
+            switch (condition.comparison) {
+                case "<":
+                    ifBinaryBoolean += `bge $t1, $t2, `
+                    break;
+                case "<=":
+                    ifBinaryBoolean += `bgt $t1, $t2, `
+                    break;
+                case ">":
+                    ifBinaryBoolean += `ble $t1, $t2, `
+                    break;
+                case ">=":
+                    ifBinaryBoolean += `bgt $t1, $t2, `
+                    break;
+                case "==":
+                    ifBinaryBoolean += `bne $t1, $t2, `
+                    break;
+                case "!=":
+                    ifBinaryBoolean +=`beq $t1, $t2, `
+                    break;
+            
+                default:
+                    break;
+            }
+        }
+        console.log("translated", ifBinaryBoolean)
+        return ifBinaryBoolean;
+    }
+
+    /** Translates the body of an if statement to equivalent mips code */
+    public translateIfBody(body: Array<Token | DataObject>): string{
+        let ifBodyMips = "";
+        body.forEach(elem => {
+            if ((elem as Token).token){
+                //elem is a token
+                ifBodyMips += this.translate(elem as Token).mipsCode
+            }
+        })
+        return ifBodyMips;
+    }
+
+    /** Translates comparands(things being compared) into appropriate types 
+     * @param register register to store the operand in i.e. '$t0'
+    */
+    private _translateIfConditionComparand(comparand: Token | DataObject, register: string) {
+        let comparandMips = ""
+        if ((comparand as DataObject).value || (comparand as DataObject).value === 0 || (comparand as DataObject).value === "") {
+            //comparand in a literal i.e. 3 or "hello"
+            const comparandData = comparand as DataObject
+            switch (comparandData.type) {
+                case "int":
+                    comparandMips += `li ${register}, ${comparandData.value}\n`
+                    break;
+                case "string":
+                    comparandMips += `la ${register}, ${comparandData.value}\n`
+                    break;
+                case "variable-int":
+                    comparandMips += `lw ${register}, ${comparandData.value}\n`
+                    break;
+                case "variable-string":
+                    comparandMips += `la ${register}, ${comparandData.value}\n`
+                    break;
+                case "variable":
+                    comparandMips += `la ${register}, ${comparandData.value}\n`
+                    break;
+                default:
+                    break;
+            }
+        }
+        else {
+            //comparand is a token. 
+            switch ((comparand as Token).token) {
+                case "print":
+                    //return error? technically python will evaluate the print and return false which i can do?
+                    //unsupported for now..
+                    break;
+                case "input":
+                    //unsupported feature so throw error
+                    break;
+                case "variableAssignment":
+                    //throw error
+                    break;
+                case "ifStatement":
+                    //throw erroe
+                    break;
+                case "stringConcatenation":
+                    //also valid, but since theres a lack of temp variables this will be hard to do.... maybe unsupport?
+                    break;
+                case "artihmeticExpression":
+                    //this is a valid case. evaluate the expression and store result(should be at $t0) at register
+                    comparandMips += this.translateArithmetic(comparand as ArtihmeticExpressionToken)
+                    comparandMips += `addi ${register}, $t0, 0\n`
+                    break;
+                default:
+                    break;
+            }
+        }
+        return comparandMips
+    }
+
+    /** Translates arithemetic tokens to mips code. Final evaluated value of the arithmetic expression is always stored 
+     * in register $t0 */
     public translateArithmetic(token: ArtihmeticExpressionToken) {
         const operations = this._postOrderArithmetic(token);
         let mipsCode: Array<parsedMipsArithmetic> = []
@@ -263,7 +524,7 @@ export default class Translate {
         return mipsCode.map(elem => this._translateArithmeticOperation(elem, availRegisters[currentRegister + 1])).join("");
     }
 
-    /** Translates a single arithmetic operation to mips code */
+    /** Translates a single arithmetic operation to mips code*/
     private _translateArithmeticOperation(mipsOperation: parsedMipsArithmetic, recentRegister?: string) {
         let mipsCode = ""
         // console.log("LOOK", mipsOperation)
@@ -284,11 +545,11 @@ export default class Translate {
                 mipsCode += this._arithmeticOperationToString("div", mipsOperation, freeRegister)
                 break;
             case "//":
-                mipsCode += this._arithmeticOperationToString("div", {...mipsOperation, operator: "/"}, freeRegister)
+                mipsCode += this._arithmeticOperationToString("div", { ...mipsOperation, operator: "/" }, freeRegister)
                 break;
             case "%":
                 mipsCode += this._arithmeticOperationToString("div", mipsOperation, freeRegister)
-                break;     
+                break;
             default:
                 break;
         }

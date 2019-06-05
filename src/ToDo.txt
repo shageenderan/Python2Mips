@@ -35,12 +35,14 @@ To Do
  [DONE] write tokens for if/else
 
 Important 
+ - [FIXED] [BUG] Fix parse being unable to parse empty strings. i.e. x = "" / if "" == "p": \tprint("ok")
+ - [FIXED] [BUG] Self concatenation, previous space values not being properly added
  - Change whitespace being added to data section [optional, might want to keep it that way?]
  - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. in memory not x: .space 4.
  - Unit tests for string concatenations 
  - if/else conditions
-    - write string comparision
-    - update strCmp function to ignore trailing newlines
+    [DONE] write string comparision
+    [DONE] update strCmp function to ignore trailing newlines
     - update parser to only add string if string.length > 1. For strings length < 1, return type "characters" instead
     - Add support for unaryBooleanExpressions, i.e. "if x" as well as things like "if x (is or ==) True"
     - Add a 'type' to if conditions to help distinguish between binary, unaryBooleanExpression and Chained boolean expressiosn

@@ -1,6 +1,6 @@
 import { SyntaxError, parse } from './pythonParser';
 import Translate from './translator';
-import { PrintToken, ArtihmeticExpressionToken, InputToken, VariableAssignmentToken } from './objects/tokens';
+import { Token } from './objects/tokens';
 import { mipsFunctions } from './mipsFunction';
 
 const testStringPrint = `x = 2;\nprint(x+2)\nx=input("type something:"); print(x)`
@@ -15,21 +15,65 @@ const testSaveSpaceStrConcat = `x="hello";print("initial x:", x);x += " world"; 
 const testChangingVarTypes = `x=3; print(x); x=x+2*5; print(x); Y="hello"; print(Y)`
 const testNewStringCOncat = `x="hello"; y="world"; x = x + y*2 +"WOW"*4; print(x); x=2;y=2; x = x+y*2; print(x)`
 const testBug = `x = "hello"; y="am i doing something wrong?"; print(x); x = "hello young luke skywalker" + " " + y; print(x); print(y); x = "reset"; print(x + "am i doing something wrong?" + " ")`
+const testSimpleIf = `n = int(input("Enter int: "));
+if n < 0:
+    print("negative")`
+const testSimpleIf2 = `n = int(input("Enter int: "))
+if (n % 2 == 0):
+ print(n, 'is even')
+else:
+ print(n, 'is odd')
 
-export interface textParams {
-    token: PrintToken | InputToken | ArtihmeticExpressionToken | VariableAssignmentToken
-}
+print("ending the program now")`
+const testMyIf = `x = "hello"
+print("x is: ", x)
+z = input("Add world?")
+if z == "y":
+    x += "world"
+    print("you added world, now x is: ", x)
+else:
+    print("you did not add world, x is still: ", x)`
+const wtf = `x = 10; y = 0
+if x == 0:
+    if y == 10:
+        print("equal")
+    else:
+        print("not equal")
+else:
+    if x == 10:
+        if y == 0:
+            print("equal")
+        else:
+            print("not equal")
+    else:
+        print("not equal")`
+const unaryIf = `x = 10
+if x:
+    print(x)
+else:
+    print("x is 0")
+`
+const bug_test = `x = 2-2
+if x:
+    print("x is not empty")
+else:
+    print("x is empty")`
+const bug_test1 = `x = input("enter x: ")
+if x:
+    print("x is not empty")
+else:
+    print("x is empty")`
 
 export interface parserOutput {
     data: Array<string>;
-    tokens: Array<PrintToken | InputToken | ArtihmeticExpressionToken | VariableAssignmentToken>;
+    tokens: Array<Token>;
 }
 
 //const x:Token<PrintToken> = {token:{}};
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(testBug) as parserOutput;
+    const sampleOutput: parserOutput = parse(bug_test) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []
