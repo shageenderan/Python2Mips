@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-06-05 21:52:55
+//Last modified : 2019-06-05 23:08:30
 
 {
 
@@ -30,7 +30,7 @@
           console.log("calculateSpace>", "returned", 60)
           return 60; //assumed input size
       }
-
+      
       if (typeof value === "number") {
           console.log("calculateSpace>", "returned", 4)
           return 4;
@@ -99,7 +99,7 @@
               const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
               console.log("assignValueToVariable> value index", valueIndex)
               console.log("assignValueToVariable>", "type is a variable")
-              variables = { ...variables, [variable]: { type, value } }
+              variables = { ...variables, [variable]: { type, value, space: variables[value] ? variables[value].space : calculateMinSpaceNeeded(value, variable)} }
               dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2)}`;
               return;
           }
@@ -483,8 +483,7 @@ IOArgs
   = CastedArgs
   / val:ArtihmeticExpression {
       if(val.token === "stringConcatenation"){
-          return val.properties.addedStrings.map(elem => {
-          return elem})
+          return val.properties.addedStrings
       }
 
       else if(val.type === "string"){
