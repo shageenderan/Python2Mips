@@ -36,8 +36,9 @@ export interface VariableAssignmentProperties {
 }
 
 export interface IfCondition {
+    type: "unaryBoolean" | "binaryBoolean" | "chainedBoolean"
     left: Token | DataObject;
-    comparison: "<" | "<=" | ">" | ">=" | "==" | "!=";
+    comparison: "<" | "<=" | ">" | ">=" | "==" | "!=" | DataObject;
     right: Token | DataObject;
 }
 
