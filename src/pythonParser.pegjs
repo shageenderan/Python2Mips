@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-05-30 23:55:23
+//Last modified : 2019-06-05 21:52:55
 
 {
 
@@ -36,7 +36,7 @@
           return 4;
       }
 
-      if (value.length) {
+      if (value.length || value === "") {
           console.log("calculateSpace>", "current is string", variables[variable])
           console.log("calculateSpace>", "returned", value.length + 1)
           return value.length + 1
@@ -72,7 +72,7 @@
   function buildChainedBooleanExpression(head, tail) {
     return tail.reduce(function(result, element) {
       return {
-        type: `Boolean${element[1].substring(0,1).toUpperCase() + element[1].substring(1) }Expression`,
+        type: `chainedBoolean`,
         operator: element[1],
         left: result,
         right: element[3]
@@ -97,10 +97,10 @@
           let newVal = "noTypeYet"
           if (type.includes("variable")) {
               const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
-              //console.log("value index", valueIndex)
+              console.log("assignValueToVariable> value index", valueIndex)
               console.log("assignValueToVariable>", "type is a variable")
               variables = { ...variables, [variable]: { type, value } }
-              dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2, dataStack[valueIndex].length - value.length - 3)}'${variable}'${dataStack[valueIndex].slice(-1)}`;
+              dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2)}`;
               return;
           }
           else if (type === "artihmeticExpression") {
@@ -131,6 +131,7 @@
                   console.log("assignValueToVariable> type is a:", newVal)
               }
               if (newVal !== "noTypeYet") {
+              	  console.log("assignValueToVariable> calculating for value, variable:", value, variable)	
                   variables = { ...variables, [variable]: { type, value, space: type === "string" ? calculateMinSpaceNeeded(value, variable) : 4 } } //4 bytes = word
                   dataStack[variableIndex] = newVal
               }
@@ -166,7 +167,9 @@
 
   function addStringToData(str) {
       console.log("[str] looking for str:", str, " in", dataStack)
-      const strIndex = dataStack.map(elem => elem.replace(/"+/g, '')).findIndex(elem => elem.slice(-1 * str.length) === str)
+      console.log("[str] transfroemed elem", dataStack[0] ? dataStack[0].substring(dataStack[0].length-2) === `""` : "nothing")
+      console.log("[str] transforming data stack to: " , dataStack.map(elem => elem.substring(elem.length-2) === `""` ? "" : elem.replace(/"+/g, '')))
+      const strIndex = dataStack.map(elem => elem.substring(elem.length-2) === `""` ? "" : elem.replace(/"+/g, '')).findIndex(elem => elem.slice(-1 * str.length) === str)
       console.log("[str] string index", strIndex)
       if (strIndex === -1) { //elem not in dataStack
           i = dataStack.length === i + 1 ? i + 1 : dataStack.length;
@@ -481,14 +484,7 @@ IOArgs
   / val:ArtihmeticExpression {
       if(val.token === "stringConcatenation"){
           return val.properties.addedStrings.map(elem => {
-          if(elem.type === "string"){
-              console.log("[str] ioargs node value", elem.value)                                              
-              return val;
-          }
-          else{
-                  return elem
-              }        
-          })
+          return elem})
       }
 
       else if(val.type === "string"){
@@ -583,12 +579,13 @@ BooleanExpression
           rightReturn =  right;
       }
       
-  return {left: leftReturn, comparison, right: rightReturn}}
-
+  return {type: "binaryBoolean", left: leftReturn, comparison, right: rightReturn}}
+	/ val:ArtihmeticExpression {return { type:"unaryBoolean", comparison: {...val} }}
+    
 ChainedBooleanExpression
   = head:(NegatedBooleanExpression/BooleanExpression)
-    tail:(_ ("and" / "or") _ (NegatedBooleanExpression/BooleanExpression))*
-    { return buildChainedBooleanExpression(head, tail, "and"); }
+    tail:(_ ("and" / "or") _ (NegatedBooleanExpression/BooleanExpression))+
+    { return buildChainedBooleanExpression(head, tail); }
 
 //change to immeadiately match correct condition, i.e. change "==" to "!="
 NegatedBooleanExpression
@@ -803,16 +800,19 @@ ArtihmeticExpression
   = value:ArtihmeticStart {if (value.type) {
        stringPresent = false;
         if( value.type  === "variable") {
-                             return {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`}
+          let type = variables[value.value].type ? variables[value.value].type.includes("variable-") ? variables[value.value].type.slice(variables[value.value].type.indexOf("variable-")): `variable-${variables[value.value].type}` : `variable`
+          return {...value, type}
         }
-       else{return value}
-                             }
-                            else {
+       else {
+         return value
+        }
+    }
+    else {
       console.log("[ra]-string present", stringPresent);
       const currentStringPresent = stringPresent;
       stringPresent = false;
       return currentStringPresent ?  {token:"stringConcatenation", properties:{addedStrings: _inOrderArithmetic(value), } , type:"stringConcat", } : {...value, type:"artihmeticExpression"}
-      }
+    }
   }
 
 ArtihmeticStart
