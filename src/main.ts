@@ -53,16 +53,33 @@ if x:
 else:
     print("x is 0")
 `
-const bug_test = `x = 2-2
+const bug_test = `x = ""
 if x:
     print("x is not empty")
 else:
     print("x is empty")`
 const bug_test1 = `x = input("enter x: ")
+y = input("enter y: ")
 if x:
-    print("x is not empty")
+    if y:
+        print("x and y are not empty")
+    else:
+        print("y is empty but x is not")
 else:
-    print("x is empty")`
+    if y:
+        print("x is empty but y is not")
+    else:
+        print("x and y are empty")`
+const leap_year = `year=int(input("Enter year to be checked:"))
+if(year%4==0 and year%100!=0 or year%400==0):
+    print("The year is a leap year!")
+else:
+    print("The year isn't a leap year!")`
+const testSimpleChained = `x = 10; y= 5
+if x % 5 == 0 or y % 5 == 0:
+    print(x//y)
+else:
+    print("either x and y is not divisible by 5")`
 
 export interface parserOutput {
     data: Array<string>;
@@ -73,7 +90,7 @@ export interface parserOutput {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(bug_test) as parserOutput;
+    const sampleOutput: parserOutput = parse(testArPrint) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []

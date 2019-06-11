@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryIfCondition, BinaryIfCondition, ChainedBooleanIfCondition } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -35,7 +35,7 @@ export default class Translate {
             case "ifStatement":
                 mipsCode += this.translateIfStatement(pyCode as IfToken);
             default:
-                //mipsCode += "#some other code\n";
+                //mipsCode += `#some error occured got token: ${pyCode.token}`;;
                 break;
         }
         return { mipsCode, functions: this.functions };
@@ -82,8 +82,8 @@ export default class Translate {
                 mipsCode += this.translateArithmetic(printToken as ArtihmeticExpressionToken)
                 mipsCode += `add $a0 $0 $t0\naddi $v0, $0, 1\nsyscall\n` //printing integer
                 break;
-
             default:
+                mipsCode += `#some error occured got type: ${printToken.type}`;
                 break;
         }
         //syscallFunc += `la $a0, ${properties.prompt.}\naddi $v0, $0, 4\nsyscall\n`;
@@ -117,6 +117,8 @@ export default class Translate {
                 mipsCode += addr ? `la $a0, ${addr}\naddi $a1, $0, 60\naddi $v0, $0, 8\nsyscall\n`
                     : `la $a0, STR_ADDRESS #[WARNING]:reading a string but not assigning it anywhere\nli $a1, MAX_SPACE_FOR_STR\naddi $v0, $0,8\nsyscall\n`
                 break;
+            default:
+                return `#some error occured got type: ${type}`;
         }
         return mipsCode
     }
@@ -202,7 +204,7 @@ export default class Translate {
                         : this._concatVariableMips(addedString.value as string, addr)
                     break;
                 default:
-                    break;
+                    return `#some error occured got type: ${addedString.type}`;
             }
         })
         mipsCode += `li $s0, 0\n` //resetting saved register.
@@ -269,68 +271,364 @@ export default class Translate {
     }
 
     /** Translates an if condition to equivalent mips code */
-    public translateIfCondition(condition: IfCondition, alternatePresent: boolean): string {
+    public translateIfCondition(condition: UnaryIfCondition | BinaryIfCondition | ChainedBooleanIfCondition, alternatePresent: boolean): string {
         let ifConditionMips = ""
         const jumpTo = alternatePresent ? "else" : "exit"
         switch (condition.type) {
             case "unaryBoolean":
-                ifConditionMips += this._translateUnaryBoolean(condition);
+                ifConditionMips += this._translateUnaryBoolean(condition as UnaryIfCondition);
                 ifConditionMips += `${jumpTo}${this.ifCounter}\n`
                 break;
             case "binaryBoolean":
-                if (!this._isSameType(condition.left as DataObject, condition.right as DataObject)) {
-                    ifConditionMips += `#This condition is comparing objects of types ${condition.left.type} and ${condition.right.type} and will never evaluate to true as comparands are of different types hence, the program just skips it\n
+                const binaryCondition = condition as BinaryIfCondition
+                if (!this._isSameType(binaryCondition.left as DataObject, binaryCondition.right as DataObject)) {
+                    ifConditionMips += `#This condition is comparing objects of types ${binaryCondition.left.type} and ${binaryCondition.right.type} and will never evaluate to true as comparands are of different types hence, the program just skips it\n
                     j ${jumpTo}${this.ifCounter}\n`
                 }
                 else{
-                    ifConditionMips += this._translateBinaryBoolean(condition)
+                    ifConditionMips += this._translateBinaryBoolean(binaryCondition)
                     ifConditionMips += `${jumpTo}${this.ifCounter}\n`
                 }
                 break;
             case "chainedBoolean":
-                ifConditionMips += this._translateChaninedBoolean(condition);
-            default:
+                ifConditionMips += this._translateChainedBoolean(condition as ChainedBooleanIfCondition, jumpTo);
                 break;
+
+            default:
+                return `#some error occured, got type: ${condition.type}\n`;
         }
         return ifConditionMips;
     }
 
-    /** Translates chained if conditions i.e. if x and y: ... to mips code */
-    private _translateChaninedBoolean(condition: IfCondition): string {
-        let ifChainedBoolean = ""
-        return ifChainedBoolean;
+    private _negateComparision(comparison: String) {
+        switch (comparison) {
+            case "==":
+                return "!=";
+            case "!=":
+                return "==";
+            case ">":
+                return "<=";
+            case ">=":
+                return "<";
+            case "<":
+                return ">=";
+            case "<=":
+                return ">";
+            default:
+                break;
+        }
     }
 
-    /** Translates unary if conditions i.e. if x: ... to mips code */
-    private _translateUnaryBoolean(condition: IfCondition): string {
-        let ifUnaryBoolean = ""
-        ifUnaryBoolean += this._translateIfConditionComparand(condition.comparison as DataObject, "$t0")
-        switch ((condition.comparison as DataObject).type) {
-            case "int":
-                ifUnaryBoolean += `beq $t0, $0, `
+    private _translateChainedBoolean(condition: ChainedBooleanIfCondition, jumpTo: string) {
+        if (condition.left.type === "chainedBoolean" || condition.right.type === "chainedBoolean") {
+            return this._translateComplexChaninedBoolean(condition, "$t0") + `beqz $t0, ${jumpTo}${this.ifCounter}\n`
+        }
+
+        else {
+            return this._translateSimpleChaninedBoolean(condition, jumpTo)
+        }
+    }
+
+    private _translateComplexChaninedBoolean(condition: ChainedBooleanIfCondition, register: string): string {
+        let chainedBooleanMips = "";
+        // Evaluates the left and right hand side before comparing the bits. 0 == False and !0 is True. Left hand side should be evaluated into $t0
+        // with a value of 0 indicating the expression is false or not 0 indicating a true(i.e. -2 and 2 are considered true but 0 is false)
+        // Similar with right hand side but with $t1 instead
+        //Translate left condition
+        switch (condition.left.type) {
+            case "unaryBoolean":
+                chainedBooleanMips += this._evaluateUnaryBoolean(condition.left as UnaryIfCondition, "$s0");
                 break;
-            case "string":
-                ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbne $v0, $0, `
-                this.functions.push('strEmpty')
+            case "binaryBoolean":
+                chainedBooleanMips += this._evaluateBinaryBoolean(condition.left as BinaryIfCondition, "$s0");
                 break;
-            case "variable-int":
-                ifUnaryBoolean += `beq $t0, $0, `
-                break;       
-            case "variable-artihmeticExpression":
-                ifUnaryBoolean += `beq $t0, $0, `
-                break;     
-            case "variable-string":
-                ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbne $v0, $0, `
-                this.functions.push('strEmpty')
+            case "chainedBoolean":
+                chainedBooleanMips += this._translateComplexChaninedBoolean(condition.left as ChainedBooleanIfCondition, "$s0");
                 break;
             default:
                 break;
+        }
+
+        //Translate right condition
+        switch (condition.right.type) {
+            case "unaryBoolean":
+                chainedBooleanMips += this._evaluateUnaryBoolean(condition.right as UnaryIfCondition, "$s1");
+                break;
+            case "binaryBoolean":
+                chainedBooleanMips += this._evaluateBinaryBoolean(condition.right as BinaryIfCondition, "$s1");
+                break;
+            case "chainedBoolean":
+                chainedBooleanMips += this._translateComplexChaninedBoolean(condition.right as ChainedBooleanIfCondition, "$s1");
+                break;
+            default:
+                break;
+        }
+
+        if (condition.operator === "and") {
+            chainedBooleanMips += `#and\nmult $s0, $s1\nmflo ${register}\n`
+        }
+        else {
+            //or
+            chainedBooleanMips += `or ${register}, $s0, $s1\n`
+        }
+
+        return chainedBooleanMips;
+    }
+
+    private _evaluateUnaryBoolean(condition: UnaryIfCondition, register: "$s0" | "$s1"): string {
+        let evaluatedUnaryMips = ""
+        switch (condition.comparison.type) {
+            case "int":
+                evaluatedUnaryMips += `li ${register}, ${condition.comparison.value}\n`;
+                break;
+            case "string":
+                evaluatedUnaryMips += `la $a0, ${condition.comparison.value}\njal strEmpty\n#Flip the lsb so that 0 becomes 1, and 1 becomes 0\n
+                xori $t0, $v0, 1\n`;
+                this.functions.push('strEmpty');
+                break;
+            case "artihmeticExpression":
+                evaluatedUnaryMips += this.translateArithmetic(condition.comparison as ArtihmeticExpressionToken);
+                evaluatedUnaryMips += `add ${register}, $t0, $0\n`
+                break;
+            case "variable-int":
+                evaluatedUnaryMips += `li ${register}, ${condition.comparison.value}\n`
+                break;
+            case "variable-string":
+                evaluatedUnaryMips += `la $a0, ${condition.comparison.value}\njal strEmpty\nli $t0, $v0\n`;
+                this.functions.push('strEmpty');
+                break;
+            default:
+                evaluatedUnaryMips += `#Some error occured, got type: ${condition.comparison.type}`
+                break;
+        }
+        return evaluatedUnaryMips;
+    }
+
+    private _evaluateBinaryBoolean(condition: BinaryIfCondition, register: "$s0" | "$s1"): string {
+        let evaluatedBinaryMips = "", leftComparand = "" , rightComparand = "";
+        let comparingStrings = false
+        if (condition.left.type.includes("string") || condition.right.type.includes("string") ) {
+            //comparing strings
+            comparingStrings = true;
+            leftComparand = this._translateIfConditionComparand(condition.left, '$a0')
+            rightComparand = this._translateIfConditionComparand(condition.right, '$a1')
+        }
+        else {
+            leftComparand = this._translateIfConditionComparand(condition.left, '$t2')
+            rightComparand = this._translateIfConditionComparand(condition.right, '$t3')
+        }
+
+        evaluatedBinaryMips += leftComparand + rightComparand
+
+        switch (condition.comparison) {
+            case "<":
+                // a < b is the same as slt register a b
+                if (comparingStrings) {
+                    //if v0 == -1 then should return 1 (true) else return 0 (false)
+                    evaluatedBinaryMips += `jal strCmp\nslti ${register}, $v0, 0\n`
+                    this.functions.push('strCmp')
+                }
+                else {
+                    evaluatedBinaryMips += `slt ${register}, $t2, $t3\n`
+                }
+                break;
+            case "<=":
+                // a <= b is the same as !(a > b)
+                if (comparingStrings) {
+                    //if v0 == 1 return 0 (false) else return 1 (true)
+                    evaluatedBinaryMips += `jal strCmp\nslti ${register}, $v0, 1\n`
+                    this.functions.push('strCmp')
+                }
+                else {
+                    evaluatedBinaryMips += `slt ${register}, $t3, $t2\nxori ${register}, ${register}, 1\n`
+                }
+                break;
+            case ">":
+                // a > b is the same as slt b a
+                if (comparingStrings) {
+                    //if v0 == 1 return 1 (true) else return 0 (false)
+                    evaluatedBinaryMips += `jal strCmp\nslt ${register}, $0, $v0\n`
+                    this.functions.push('strCmp')
+                }
+                else {
+                    evaluatedBinaryMips += `slt ${register} $t3, $t2\n`
+                }
+                break;
+            case ">=":
+                // a >= b is the same as !(a < b)
+                if (comparingStrings) {
+                    //if v0 == -1 then should return 0 (false) else return 1 (true)
+                    evaluatedBinaryMips += `jal strCmp\nli ${register}, -1\nslt ${register}, ${register}, $v0\n`
+                    this.functions.push('strCmp')
+                }
+                else {
+                    evaluatedBinaryMips += `slt ${register} $t2, $t3\nxori ${register}, ${register}, 1\n`
+                }
+                break;
+            case "==":
+                // a == b is the same as a-b == 0
+                if (comparingStrings) {
+                    //if v0 == 0 then should return 1 (true) else return 0 (false)
+                    evaluatedBinaryMips += `jal strCmp\nsltiu ${register}, $v0, 1\n`
+                    this.functions.push('strCmp')
+                }
+                else {
+                    evaluatedBinaryMips += `subu ${register} $t2, $t3\nsltu ${register}, $0, ${register}\nxori ${register}, ${register}, 1\n`
+                }
+                break;
+            case "!=":
+                // a != b is the same as a-b != 0
+                if (comparingStrings) {
+                    //if v0 == 0 then should return 0 (false) else return 1 (true)
+                    evaluatedBinaryMips += `jal strCmp\nsltu ${register}, $0, $v0\n`
+                    this.functions.push('strCmp')
+                }
+                else {
+                    evaluatedBinaryMips += `subu ${register} $t2, $t3\nsltu ${register}, $0, ${register}\n`
+                }
+                break;     
+            default:
+                evaluatedBinaryMips += `#some error occured got comparison ${condition.comparison}\n`
+                break;
+        }
+
+        return evaluatedBinaryMips;
+    }
+
+    private _evaluateChainedBoolean() {
+
+    }
+
+    /** Translates simple chained if conditions i.e. if x and y: ... to mips code */
+    private _translateSimpleChaninedBoolean(condition: ChainedBooleanIfCondition, jumpTo: string): string {
+        let chainedBooleanMips = ""
+        if (condition.operator === "and") {
+            //Translate left
+            switch (condition.left.type) {
+                case "unaryBoolean":
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition);
+                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    break;
+                case "binaryBoolean":
+                    chainedBooleanMips += this._translateBinaryBoolean(condition.left as BinaryIfCondition);
+                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    break;
+                default:
+                    break;
+            }
+            //Translate right
+            switch (condition.right.type) {
+                case "unaryBoolean":
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition);
+                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    break;
+                case "binaryBoolean":
+                    chainedBooleanMips += this._translateBinaryBoolean(condition.right as BinaryIfCondition);
+                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    break;
+                default:
+                    break;
+            }
+        }
+        else {  //or
+            const negatedLeft = {...condition.left, comparison: this._negateComparision((condition.left as BinaryIfCondition).comparison as String)}
+            console.log("NEGATED IF OR", negatedLeft)
+            //Translate left
+            switch (negatedLeft.type) {
+                case "unaryBoolean":
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition, true);
+                    chainedBooleanMips += `ifBody${this.ifCounter}\n`
+                    break;
+                case "binaryBoolean":
+                    chainedBooleanMips += this._translateBinaryBoolean(negatedLeft as BinaryIfCondition);
+                    chainedBooleanMips += `ifBody${this.ifCounter}\n`
+                    break;
+                default:
+                    break;
+            }
+            //Translate right
+            switch (condition.right.type) {
+                case "unaryBoolean":
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition);
+                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    break;
+                case "binaryBoolean":
+                    chainedBooleanMips += this._translateBinaryBoolean(condition.right as BinaryIfCondition);
+                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    break;
+                default:
+                    break;
+            }
+            chainedBooleanMips += `\nifBody${this.ifCounter}:\n`
+        }
+        
+        return chainedBooleanMips;
+    }
+
+    /** Translates unary if conditions i.e. if x: ... to mips code */
+    private _translateUnaryBoolean(condition: UnaryIfCondition, negated = false): string {
+        let ifUnaryBoolean = ""
+        ifUnaryBoolean += this._translateIfConditionComparand(condition.comparison as DataObject, "$t0")
+        if (negated) {
+            switch (condition.comparison.type) {
+                case "int":
+                    ifUnaryBoolean += `bne $t0, $0, `
+                    break;
+                case "string":
+                    ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbeq $v0, $0, `
+                    this.functions.push('strEmpty')
+                    break;
+                case "artihmeticExpression":
+                    ifUnaryBoolean += this.translateArithmetic(condition.comparison as ArtihmeticExpressionToken)
+                    ifUnaryBoolean += `bne $t0, $0, `
+                    break;
+                case "variable-int":
+                    ifUnaryBoolean += `bne $t0, $0, `
+                    break;       
+                case "variable-artihmeticExpression":
+                    ifUnaryBoolean += `bne $t0, $0, `
+                    break;     
+                case "variable-string":
+                    ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbeq $v0, $0, `
+                    this.functions.push('strEmpty')
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        else {
+            switch (condition.comparison.type) {
+                case "int":
+                    ifUnaryBoolean += `beq $t0, $0, `
+                    break;
+                case "string":
+                    ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbne $v0, $0, `
+                    this.functions.push('strEmpty')
+                    break;
+                case "artihmeticExpression":
+                    ifUnaryBoolean += this.translateArithmetic(condition.comparison as ArtihmeticExpressionToken)
+                    ifUnaryBoolean += `beq $t0, $0, `
+                    break;
+                case "variable-int":
+                    ifUnaryBoolean += `beq $t0, $0, `
+                    break;       
+                case "variable-artihmeticExpression":
+                    ifUnaryBoolean += `beq $t0, $0, `
+                    break;     
+                case "variable-string":
+                    ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbne $v0, $0, `
+                    this.functions.push('strEmpty')
+                    break;
+                default:
+                    break;
+            }
         }
         return ifUnaryBoolean;
     }
 
     /** Translates binary if conditions i.e. if x > y: ... to mips code */
-    private _translateBinaryBoolean(condition: IfCondition): string{
+    private _translateBinaryBoolean(condition: BinaryIfCondition): string{
         let ifBinaryBoolean = ""
         //comparands are of the same type
         if (condition.left.type.includes("string")){
@@ -687,7 +985,7 @@ export default class Translate {
     }
 
     /** Traverses through a parsed arithmetic sequence and returns a more readable result in the correct order */
-    private _postOrderArithmetic(root: ArtihmeticExpressionToken | StringConcatenationToken): Array<{ operator: "+" | "-" | "*" | "/", left: any, right: any }> {
+    private _postOrderArithmetic(root: ArtihmeticExpressionToken | StringConcatenationToken): Array<{ operator: "+" | "-" | "*" | "/" | "//" | "%", left: any, right: any }> {
         const result = [];
         const node = root
         //not typed to avoid the headache of having to cast each node value
