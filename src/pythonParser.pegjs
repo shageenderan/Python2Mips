@@ -537,36 +537,20 @@ BooleanExpression
   / __ __ left:ArtihmeticExpression __ _ comparison:Comparison _  __ right:ArtihmeticExpression __ __ {
   let leftReturn, rightReturn; 
     if(left.token === "stringConcatenation"){
-            leftReturn = left.properties.addedStrings.map(elem => {
-            if(left.type === "string"){
-                console.log("[str] ioargs node value", left.value)                                              
-                return left;
-            }
-            else{
-                    return elem
-                }        
-            })
-        }
+	    leftReturn = left.properties.addedStrings
+    }
 
-      else if(left.type === "string"){
-          console.log("[str] string node value", left.value)
-          leftReturn = addStringToData(left.value);
-      }
+    else if(left.type === "string"){
+        console.log("[str] string node value", left.value)
+    	leftReturn = addStringToData(left.value);
+    }
 
-      else{
-          leftReturn =  left;
-      }
+    else{
+    	leftReturn =  left;
+    }
       
       if(right.token === "stringConcatenation"){
-            rightReturn = right.properties.addedStrings.map(elem => {
-            if(right.type === "string"){
-                console.log("[str] ioargs node value", right.value)                                              
-                return right;
-            }
-            else{
-                    return elem
-                }        
-            })
+            rightReturn = right.properties.addedStrings
         }
 
       else if(right.type === "string"){
@@ -579,19 +563,36 @@ BooleanExpression
       }
       
   return {type: "binaryBoolean", left: leftReturn, comparison, right: rightReturn}}
-	/ val:ArtihmeticExpression {return { type:"unaryBoolean", comparison: {...val} }}
+	/ val:ArtihmeticExpression {
+    if (val.type === "string") {
+      let strVal = addStringToData(val.value)
+      return { type:"unaryBoolean", comparison: {...strVal} }
+    }
+    else {
+      return { type:"unaryBoolean", comparison: {...val} } 
+    }
+  }
     
 ChainedBooleanExpression
   = head:(NegatedBooleanExpression/BooleanExpression)
-    tail:(_ ("and" / "or") _ (NegatedBooleanExpression/BooleanExpression))+
+    tail:(_ ("and" / "or") _ (NegatedBooleanExpression/BooleanExpression))
     { return buildChainedBooleanExpression(head, tail); }
+
+ComplexChainedBooleanExpression
+  = head:ComplexChainedBooleanFactor tail:(_ ("and" / "or") _ ComplexChainedBooleanFactor)+ {
+         return buildChainedBooleanExpression(head, tail);
+  }
+  
+ComplexChainedBooleanFactor
+  = "(" _ expr:ComplexChainedBooleanExpression _ ")" { return expr; }
+  / NegatedBooleanExpression/BooleanExpression
 
 //change to immeadiately match correct condition, i.e. change "==" to "!="
 NegatedBooleanExpression
- = "not" _ expr:BooleanExpression {return {...expr, negated: true}}
+= "not" _ expr:BooleanExpression {return {...expr, negated: true}}
 
 IfCondition
-  = ChainedBooleanExpression / NegatedBooleanExpression / BooleanExpression
+  = ComplexChainedBooleanExpression / ChainedBooleanExpression / NegatedBooleanExpression / BooleanExpression
  
 IfStatement
 	= IfToken _ condition:IfCondition _ ":"  _"\n"
@@ -628,7 +629,7 @@ SingleStringCharacter
   / "\\" sequence:EscapeSequence { return sequence; }
  
 IntegerLiteral "integer"
-  = [0-9]+ { return {type: "int", value:parseInt(text(), 10)} }
+  = ("-"/ "")[0-9]+ { return {type: "int", value:parseInt(text(), 10)} }
  
 LineTerminator
   = [\n\r\u2028\u2029]
@@ -798,7 +799,7 @@ Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
 ArtihmeticExpression
   = value:ArtihmeticStart {if (value.type) {
        stringPresent = false;
-        if( value.type  === "variable") {
+       if( value.type  === "variable") {
           let type = variables[value.value].type ? variables[value.value].type.includes("variable-") ? variables[value.value].type.slice(variables[value.value].type.indexOf("variable-")): `variable-${variables[value.value].type}` : `variable`
           return {...value, type}
         }
@@ -810,13 +811,14 @@ ArtihmeticExpression
       console.log("[ra]-string present", stringPresent);
       const currentStringPresent = stringPresent;
       stringPresent = false;
-      return currentStringPresent ?  {token:"stringConcatenation", properties:{addedStrings: _inOrderArithmetic(value), } , type:"stringConcat", } : {...value, type:"artihmeticExpression"}
+      return currentStringPresent ?  {token:"stringConcatenation", properties:{addedStrings: _inOrderArithmetic(value), } , type:"stringConcat", } 
+      : {...value, type:"artihmeticExpression"}
     }
   }
 
 ArtihmeticStart
   = head:ArtihmeticTerm tail:(_ ("+" / "-") _ ArtihmeticTerm)* {
-                             return buildArtihmeticExpression(head, tail)
+      return buildArtihmeticExpression(head, tail)
     }
 
 ArtihmeticTerm

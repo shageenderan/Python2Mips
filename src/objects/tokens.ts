@@ -21,6 +21,7 @@ export interface ArtihmeticExpressionProperties {
     operator: "+" | "-" | "*" | "/";
     left: ArtihmeticExpressionToken | DataObject;
     right: ArtihmeticExpressionToken | DataObject;
+    abs: boolean;
 }
 
 export interface IOTokenProperties {
@@ -35,15 +36,28 @@ export interface VariableAssignmentProperties {
     space?: number;
 }
 
-export interface IfCondition {
-    type: "unaryBoolean" | "binaryBoolean" | "chainedBoolean"
+export interface UnaryIfCondition extends IfCondition {
+    comparison: DataObject;
+}
+
+export interface BinaryIfCondition extends IfCondition {
     left: Token | DataObject;
-    comparison: "<" | "<=" | ">" | ">=" | "==" | "!=" | DataObject;
+    comparison: "<" | "<=" | ">" | ">=" | "==" | "!=";
     right: Token | DataObject;
 }
 
+export interface ChainedBooleanIfCondition extends IfCondition {
+    left: Token | DataObject;
+    operator?: "and" | "or";
+    right: Token | DataObject;
+}
+
+export interface IfCondition {
+    type: "unaryBoolean" | "binaryBoolean" | "chainedBoolean"
+}
+
 export interface IfTokenProperties {
-    condition: IfCondition;
+    condition: UnaryIfCondition | BinaryIfCondition | ChainedBooleanIfCondition;
     body: Array<Token | DataObject>
     alternate: Array<Token | DataObject>
 }

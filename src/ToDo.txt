@@ -44,9 +44,13 @@ Important
     [DONE] write string comparision
     [DONE] update strCmp function to ignore trailing newlines
     - update parser to only add string if string.length > 1. For strings length < 1, return type "characters" instead
-    - Add support for unaryBooleanExpressions, i.e. "if x" as well as things like "if x (is or ==) True"
-    - Add a 'type' to if conditions to help distinguish between binary, unaryBooleanExpression and Chained boolean expressiosn
-    - Translate unaryBooleanExpression and Chained boolean expressions (binary has been done)
+    [DONE] Add support for unaryBooleanExpressions, i.e. "if x" as well as things like "if x (is or ==) True"
+    [DONE] Add a 'type' to if conditions to help distinguish between binary, unaryBooleanExpression and Chained boolean expressiosn
+    [DONE] Translate unaryBooleanExpression 
+    [DONE] Refactor Chained Boolean parsing to take into account rount brackets. Follow Arithmetic expressions parsing 
+    [DONE] Translate Chained boolean expressions 
+    - Add boolean data type 
+    - Add translations for string concatenatrion in if conditions. Do this by checking each elem in addedString and ensure AT LEAST ONE is non empty
     - Update parser to automatically negate parsed expressions. i.e. 
         if !True should parse: if False 
         if !(x > 3) should parse: if x <= 3
