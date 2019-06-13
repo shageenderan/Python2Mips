@@ -35,6 +35,11 @@
           console.log("calculateSpace>", "returned", 4)
           return 4;
       }
+      
+      if (typeof value === "boolean") {
+          console.log("calculateSpace>", "current is boolean")
+          return 4
+      }
 
       if (value.length || value === "") {
           console.log("calculateSpace>", "current is string", variables[variable])
@@ -119,6 +124,12 @@
               console.log("assignValueToVariable>", "type is a input")
               dataStack[variableIndex] = `${variable}: \t.space\t${60} #{enter a more exact space for variable: '${variable}'}`
               variables = { ...variables, [variable]: { type: "string", value, space: 60 } } //assumed input size
+              return;
+          }
+          else if (type === "boolean") {
+              console.log("assignValueToVariable>", "type is a boolean")
+              variables = { ...variables, [variable]: { type, value, space: 4 } }
+              dataStack[variableIndex] = value ? `${variable}: \t.word\t1`: `${variable}: \t.word\t0`
               return;
           }
           else {
@@ -451,6 +462,8 @@ VariableAssignment
                                                          }
          }
                              }
+  / variable:(Variable) _ "=" _ value:Boolean {return assignValueToVariable(variable.value, value.type, value.value) === -1 ? {token: "variableAssignment", properties:{variable:variable.value, space: 4, value}}
+      : {token: "variableAssignment", properties:{variable:variable.value, space: 4, value:{...value, initialDeclaration: true}}} }
   / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; return assignValueToVariable(variable.value, value.type, value.value) === -1 ? {token: "variableAssignment", properties:{variable:variable.value, space, value}}
       : {token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true}}} }
   / variable:(Variable) _ "=" _ value:Input {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; assignValueToVariable(variable.value, "string", value); return {token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, type: "string"}}, }}
@@ -490,11 +503,16 @@ IOArgs
           console.log("[str] string node value", val.value)
           return addStringToData(val.value);
       }
+      
+      else if(val.type === "variable-boolean"){
+      	return val.value ? addStringToData("True") : addStringToData("False")
+      }
 
       else{
           return val;
       }
   }
+  / val:Boolean {return val.value ? addStringToData("True") : addStringToData("False")}
   //everything below is not needed
   / value: Variable {return {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`} }
   / str:StringLiteral {return addStringToData(str.value)}
@@ -532,8 +550,12 @@ Comparison
  / "=="
  / "!="
 
+Boolean
+	= "True" {return {type:"boolean", value: true}}
+    / "False" {return {type:"boolean", value: false}}
+
 BooleanExpression
-  = "True" / "False"
+  = bool:Boolean {return { type:"unaryBoolean", comparison: {type:"boolean", value: bool} }}
   / __ __ left:ArtihmeticExpression __ _ comparison:Comparison _  __ right:ArtihmeticExpression __ __ {
   let leftReturn, rightReturn; 
     if(left.token === "stringConcatenation"){
@@ -700,8 +722,10 @@ ReservedWord
 / "else"
 / "break"
 / "return"
+/ "def"
+/ "pass"
 / "True"
- / "False"
+/ "False"
  
 //taken from javascript parser
 Variable
