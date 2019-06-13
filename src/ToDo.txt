@@ -33,28 +33,24 @@ To Do
  [DONE] Add support for adding self into an ArtihmeticExpression, i.e. x = 10; x += 1;
  [DONE] parse if/else
  [DONE] write tokens for if/else
-
+ [DONE] Add support for unaryBooleanExpressions, i.e. "if x" as well as things like "if x (is or ==) True"
+ [DONE] Add a 'type' to if conditions to help distinguish between binary, unaryBooleanExpression and Chained boolean expressiosn
+ [DONE] Translate unaryBooleanExpression 
+ [DONE] Refactor Chained Boolean parsing to take into account rount brackets. Follow Arithmetic expressions parsing 
+ [DONE] Translate Chained boolean expressions 
+ [NO NEED] Add translations for string concatenatrion in if conditions. Do this by checking each elem in addedString and ensure AT LEAST ONE is non empty
+ [DONE] Add boolean data type 
+ [DONE] Update parser to automatically negate parsed expressions. i.e. 
+    if !True should parse: if False 
+    if !(x > 3) should parse: if x <= 3
+ [FIXED] [BUG] Fix parse being unable to parse empty strings. i.e. x = "" / if "" == "p": \tprint("ok")
+ [FIXED] [BUG] Self concatenation, previous space values not being properly added
+ [DONE] write string comparision
+ [DONE] update strCmp function to ignore trailing newlines
+ 
 Important 
- - [FIXED] [BUG] Fix parse being unable to parse empty strings. i.e. x = "" / if "" == "p": \tprint("ok")
- - [FIXED] [BUG] Self concatenation, previous space values not being properly added
- - Change whitespace being added to data section [optional, might want to keep it that way?]
- - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. in memory not x: .space 4.
- - Unit tests for string concatenations 
- - if/else conditions
-    [DONE] write string comparision
-    [DONE] update strCmp function to ignore trailing newlines
-    - update parser to only add string if string.length > 1. For strings length < 1, return type "characters" instead
-    [DONE] Add support for unaryBooleanExpressions, i.e. "if x" as well as things like "if x (is or ==) True"
-    [DONE] Add a 'type' to if conditions to help distinguish between binary, unaryBooleanExpression and Chained boolean expressiosn
-    [DONE] Translate unaryBooleanExpression 
-    [DONE] Refactor Chained Boolean parsing to take into account rount brackets. Follow Arithmetic expressions parsing 
-    [DONE] Translate Chained boolean expressions 
-    [NO NEED] Add translations for string concatenatrion in if conditions. Do this by checking each elem in addedString and ensure AT LEAST ONE is non empty
-    [DONE] Add boolean data type 
-    [DONE] Update parser to automatically negate parsed expressions. i.e. 
-        if !True should parse: if False 
-        if !(x > 3) should parse: if x <= 3
-
+ - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. 
+  in memory not x: .space 4.
  - for loops
  - while loops
  - arrays
@@ -64,9 +60,13 @@ Important
   will return 60 as space for x
  
 
-Small/Optional
- - Add function to reduce print/ input args. i.e. print("hello" + "world") reduces to print("hello world") or print(3 + 3) 
-   reduces to print(6)
+Small/Optional 
+ - if/else conditions
+    -Add support for elif conditions [high priority]
+    -Add support for switch statements [low priority]
+ - Change whitespace being added to data section [optional, might want to keep it that way?]
+ - Unit tests for string concatenations 
+ - update parser to only add string if string.length > 1. For strings length < 1, return type "characters" instead
  - Refactor translating arithmetics to take in an optional variable "register" which will dictate the final register to place the
    value instead of the default $t0.
 
