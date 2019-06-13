@@ -80,6 +80,13 @@ if x % 5 == 0 or y % 5 == 0:
     print(x//y)
 else:
     print("either x and y is not divisible by 5")`
+const testBoolean = `x = False
+if x:
+    print(x)
+else:
+    x = True
+    if x:
+        print("Now x is ", x)`
 
 export interface parserOutput {
     data: Array<string>;
@@ -90,7 +97,7 @@ export interface parserOutput {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(testArPrint) as parserOutput;
+    const sampleOutput: parserOutput = parse(testBoolean) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []

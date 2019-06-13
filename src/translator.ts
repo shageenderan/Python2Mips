@@ -126,7 +126,7 @@ export default class Translate {
     /** Translates variable assignment tokens to mips code */
     public translateVariableAssignment(token: VariableAssignmentToken): string {
         let variableAssignmentMips = ""
-        if ((token.properties.value as VariableAssignmentDataObject).value) {
+        if ((token.properties.value as VariableAssignmentDataObject).value || (token.properties.value as VariableAssignmentDataObject).type === "boolean") {
             const dataObjToken = token.properties.value as VariableAssignmentDataObject;
             console.log(dataObjToken, !dataObjToken.initialDeclaration)
             if (!dataObjToken.initialDeclaration) {
@@ -140,7 +140,13 @@ export default class Translate {
                     case "int":
                         variableAssignmentMips += `li $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
                         break;
+                    case "boolean":
+                        variableAssignmentMips += `li $t0, ${dataObjToken.value ? "1" : "0"}\nsw $t0, ${token.properties.variable}\n`
+                        break;
                     case "variable-int":
+                        variableAssignmentMips += `lw $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
+                        break;
+                    case "variable-boolean":
                         variableAssignmentMips += `lw $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
                         break;
                     case "variable-artihmeticExpression":
@@ -169,7 +175,7 @@ export default class Translate {
                 ? `la $s0, ${variable}\naddi $s0, $s0, ${token.properties.space - 1}\n`
                 : `la $s0, ${variable}\n`;
 
-            variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable, token.properties.space);
+            variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable);
         }
 
         else if ((token.properties.value as InputToken).token === "input") {
@@ -190,18 +196,18 @@ export default class Translate {
         return variableAssignmentMips;
     }
 
-    public translateStringConcatenation(token: StringConcatenationToken, addr: string, space?: number) {
+    public translateStringConcatenation(token: StringConcatenationToken, addr: string) {
         let mipsCode = ``;
         (token.properties as StringConcatProperties).addedStrings.forEach(addedString => {
             switch (addedString.type) {
                 case "string":
-                    mipsCode += `${this._concatVariableMips(addedString.value as string, addr)}`
+                    mipsCode += `${this._concatVariableMips(addedString.value as string)}`
                     break;
                 //update to variable-string and variable-int
                 case "variable":
                     mipsCode += (token.properties as StringConcatProperties).addedStrings.indexOf(addedString) === 0 && addedString.value === addr
                         ? `` // skip adding the same value
-                        : this._concatVariableMips(addedString.value as string, addr)
+                        : this._concatVariableMips(addedString.value as string)
                     break;
                 default:
                     return `#some error occured got type: ${addedString.type}`;
@@ -212,8 +218,7 @@ export default class Translate {
         //console.log("**********************************************************\n", mipsCode, "\n**********************************************************");
     }
 
-    // move this along with other in-built python functions to its own module at a later time
-    private _concatVariableMips(variable: string, addr: string): string {
+    private _concatVariableMips(variable: string): string {
         let mipsCode = `add $a0, $s0, $0\nla $a1, ${variable}\njal strConcat\n`
         this.functions.push('strConcat');
         return mipsCode;
@@ -253,18 +258,10 @@ export default class Translate {
         if (val1.type.includes("string") && val2.type.includes("string")) {
             return true
         }
-        else if (val1.type.includes("int") && val2.type.includes("int")) {
+        else if ( (val1.type.includes("int") || val1.type === "artihmeticExpression" || val1.type.includes("boolean"))  
+               && (val2.type.includes("int") || val2.type === "artihmeticExpression" || val2.type.includes("boolean")) ) {
             return true
-        }   
-        else if (val1.type.includes("int") && val2.type === "artihmeticExpression") {
-            return true
-        }
-        else if (val1.type === "artihmeticExpression" && val2.type.includes("int")) {
-            return true
-        }
-        else if (val1.type === "artihmeticExpression" && val2.type === "artihmeticExpression") {
-            return true
-        }
+        } 
         else{
             return false    
         }
@@ -323,7 +320,6 @@ export default class Translate {
         if (condition.left.type === "chainedBoolean" || condition.right.type === "chainedBoolean") {
             return this._translateComplexChaninedBoolean(condition, "$t0") + `beqz $t0, ${jumpTo}${this.ifCounter}\n`
         }
-
         else {
             return this._translateSimpleChaninedBoolean(condition, jumpTo)
         }
@@ -331,9 +327,9 @@ export default class Translate {
 
     private _translateComplexChaninedBoolean(condition: ChainedBooleanIfCondition, register: string): string {
         let chainedBooleanMips = "";
-        // Evaluates the left and right hand side before comparing the bits. 0 == False and !0 is True. Left hand side should be evaluated into $t0
+        // Evaluates the left and right hand side before comparing the bits. 0 == False and !0 is True. Left hand side should be evaluated into $s0
         // with a value of 0 indicating the expression is false or not 0 indicating a true(i.e. -2 and 2 are considered true but 0 is false)
-        // Similar with right hand side but with $t1 instead
+        // Similar with right hand side but with $ts1 instead
         //Translate left condition
         switch (condition.left.type) {
             case "unaryBoolean":
@@ -390,12 +386,18 @@ export default class Translate {
                 evaluatedUnaryMips += this.translateArithmetic(condition.comparison as ArtihmeticExpressionToken);
                 evaluatedUnaryMips += `add ${register}, $t0, $0\n`
                 break;
-            case "variable-int":
+            case "boolean":
                 evaluatedUnaryMips += `li ${register}, ${condition.comparison.value}\n`
+                break;
+            case "variable-int":
+                evaluatedUnaryMips += `lw ${register}, ${condition.comparison.value}\n`
                 break;
             case "variable-string":
                 evaluatedUnaryMips += `la $a0, ${condition.comparison.value}\njal strEmpty\nli $t0, $v0\n`;
                 this.functions.push('strEmpty');
+                break;
+            case "variable-boolean":
+                evaluatedUnaryMips += `lw ${register}, ${condition.comparison.value}\n`
                 break;
             default:
                 evaluatedUnaryMips += `#Some error occured, got type: ${condition.comparison.type}`
@@ -495,10 +497,6 @@ export default class Translate {
         return evaluatedBinaryMips;
     }
 
-    private _evaluateChainedBoolean() {
-
-    }
-
     /** Translates simple chained if conditions i.e. if x and y: ... to mips code */
     private _translateSimpleChaninedBoolean(condition: ChainedBooleanIfCondition, jumpTo: string): string {
         let chainedBooleanMips = ""
@@ -530,7 +528,8 @@ export default class Translate {
                     break;
             }
         }
-        else {  //or
+        else {  
+            //or
             const negatedLeft = {...condition.left, comparison: this._negateComparision((condition.left as BinaryIfCondition).comparison as String)}
             console.log("NEGATED IF OR", negatedLeft)
             //Translate left
@@ -582,6 +581,9 @@ export default class Translate {
                     ifUnaryBoolean += this.translateArithmetic(condition.comparison as ArtihmeticExpressionToken)
                     ifUnaryBoolean += `bne $t0, $0, `
                     break;
+                case "boolean":
+                    ifUnaryBoolean += `bne $t0, $0, `
+                    break;
                 case "variable-int":
                     ifUnaryBoolean += `bne $t0, $0, `
                     break;       
@@ -590,7 +592,10 @@ export default class Translate {
                     break;     
                 case "variable-string":
                     ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbeq $v0, $0, `
-                    this.functions.push('strEmpty')
+                    this.functions.push('strEmpty');
+                    break;
+                case "variable-boolean":
+                    ifUnaryBoolean += `bne $t0, $0, `
                     break;
                 default:
                     break;
@@ -610,6 +615,9 @@ export default class Translate {
                     ifUnaryBoolean += this.translateArithmetic(condition.comparison as ArtihmeticExpressionToken)
                     ifUnaryBoolean += `beq $t0, $0, `
                     break;
+                case "boolean":
+                    ifUnaryBoolean += `beq $t0, $0, `
+                    break;
                 case "variable-int":
                     ifUnaryBoolean += `beq $t0, $0, `
                     break;       
@@ -619,6 +627,9 @@ export default class Translate {
                 case "variable-string":
                     ifUnaryBoolean += `add $a0, $t0, $0\njal strEmpty\nbne $v0, $0, `
                     this.functions.push('strEmpty')
+                    break;
+                case "variable-boolean":
+                    ifUnaryBoolean += `beq $t0, $0, `
                     break;
                 default:
                     break;
@@ -728,11 +739,19 @@ export default class Translate {
                 case "string":
                     comparandMips += `la ${register}, ${comparandData.value}\n`
                     break;
+                case "boolean":
+                    comparandMips += `li ${register}, ${comparandData.value ? "1" : "0"}`
                 case "variable-int":
                     comparandMips += `lw ${register}, ${comparandData.value}\n`
                     break;
                 case "variable-string":
                     comparandMips += `la ${register}, ${comparandData.value}\n`
+                    break;
+                case "variable-artihmeticExpression":
+                    comparandMips += `lw ${register}, ${comparandData.value}\n`
+                    break;
+                case "variable-boolean":
+                    comparandMips += `lw ${register}, ${comparandData.value}\n`
                     break;
                 case "variable":
                     comparandMips += `la ${register}, ${comparandData.value}\n`

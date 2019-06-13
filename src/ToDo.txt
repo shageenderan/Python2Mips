@@ -49,12 +49,11 @@ Important
     [DONE] Translate unaryBooleanExpression 
     [DONE] Refactor Chained Boolean parsing to take into account rount brackets. Follow Arithmetic expressions parsing 
     [DONE] Translate Chained boolean expressions 
-    - Add boolean data type 
-    - Add translations for string concatenatrion in if conditions. Do this by checking each elem in addedString and ensure AT LEAST ONE is non empty
+    [NO NEED] Add translations for string concatenatrion in if conditions. Do this by checking each elem in addedString and ensure AT LEAST ONE is non empty
+    [DONE] Add boolean data type 
     - Update parser to automatically negate parsed expressions. i.e. 
         if !True should parse: if False 
         if !(x > 3) should parse: if x <= 3
-    - write translations for if tokens
 
  - for loops
  - while loops
