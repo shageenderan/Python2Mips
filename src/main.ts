@@ -87,6 +87,12 @@ else:
     x = True
     if x:
         print("Now x is ", x)`
+const testNotIf = `x = 2010
+if x > 10 and x % 5 == 0 and not x == 5:
+    print("x is not 5 but is divisible by 5 and bigger than 10")
+else:
+    print("x is either 5, not divisible by 5, or smaller than 10")
+`
 
 export interface parserOutput {
     data: Array<string>;
@@ -97,7 +103,7 @@ export interface parserOutput {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(testBoolean) as parserOutput;
+    const sampleOutput: parserOutput = parse(testNotIf) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []

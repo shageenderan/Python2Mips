@@ -38,6 +38,7 @@ export interface VariableAssignmentProperties {
 
 export interface UnaryIfCondition extends IfCondition {
     comparison: DataObject;
+    negated: boolean;
 }
 
 export interface BinaryIfCondition extends IfCondition {

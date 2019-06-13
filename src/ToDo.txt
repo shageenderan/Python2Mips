@@ -51,7 +51,7 @@ Important
     [DONE] Translate Chained boolean expressions 
     [NO NEED] Add translations for string concatenatrion in if conditions. Do this by checking each elem in addedString and ensure AT LEAST ONE is non empty
     [DONE] Add boolean data type 
-    - Update parser to automatically negate parsed expressions. i.e. 
+    [DONE] Update parser to automatically negate parsed expressions. i.e. 
         if !True should parse: if False 
         if !(x > 3) should parse: if x <= 3
 

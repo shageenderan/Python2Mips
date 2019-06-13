@@ -273,7 +273,7 @@ export default class Translate {
         const jumpTo = alternatePresent ? "else" : "exit"
         switch (condition.type) {
             case "unaryBoolean":
-                ifConditionMips += this._translateUnaryBoolean(condition as UnaryIfCondition);
+                ifConditionMips += this._translateUnaryBoolean(condition as UnaryIfCondition, (condition as UnaryIfCondition).negated);
                 ifConditionMips += `${jumpTo}${this.ifCounter}\n`
                 break;
             case "binaryBoolean":
@@ -297,7 +297,7 @@ export default class Translate {
         return ifConditionMips;
     }
 
-    private _negateComparision(comparison: String) {
+    private _negateComparsion(comparison: String) {
         switch (comparison) {
             case "==":
                 return "!=";
@@ -504,7 +504,7 @@ export default class Translate {
             //Translate left
             switch (condition.left.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition);
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition, (condition.left as UnaryIfCondition).negated);
                     chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
                     break;
                 case "binaryBoolean":
@@ -517,7 +517,7 @@ export default class Translate {
             //Translate right
             switch (condition.right.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition);
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition, (condition.left as UnaryIfCondition).negated);
                     chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
                     break;
                 case "binaryBoolean":
@@ -530,12 +530,12 @@ export default class Translate {
         }
         else {  
             //or
-            const negatedLeft = {...condition.left, comparison: this._negateComparision((condition.left as BinaryIfCondition).comparison as String)}
+            const negatedLeft = {...condition.left, comparison: this._negateComparsion((condition.left as BinaryIfCondition).comparison as String)}
             console.log("NEGATED IF OR", negatedLeft)
             //Translate left
             switch (negatedLeft.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition, true);
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition, !(condition.left as UnaryIfCondition).negated);
                     chainedBooleanMips += `ifBody${this.ifCounter}\n`
                     break;
                 case "binaryBoolean":
@@ -548,7 +548,7 @@ export default class Translate {
             //Translate right
             switch (condition.right.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition);
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition, (condition.left as UnaryIfCondition).negated);
                     chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
                     break;
                 case "binaryBoolean":
