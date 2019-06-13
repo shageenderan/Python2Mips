@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-06-05 23:08:30
+//Last modified : 2019-06-14 01:56:50
 
 {
 
@@ -72,17 +72,6 @@
           console.log("calculateSpace>", "returned", spaceNeeded + 1)
           return spaceNeeded + 1
       }
-  }
-
-  function buildChainedBooleanExpression(head, tail) {
-    return tail.reduce(function(result, element) {
-      return {
-        type: `chainedBoolean`,
-        operator: element[1],
-        left: result,
-        right: element[3]
-      };
-    }, head);
   }
 
   function calculateMinSpaceNeeded(value, variable) {
@@ -257,6 +246,18 @@
           };
       }, head);
   }
+  
+  function buildChainedBooleanExpression(head, tail) {
+  	console.log("sycosis", head, tail)
+    return tail.reduce(function(result, element) {
+      return {
+        type: `chainedBoolean`,
+        operator: element[1],
+        left: result,
+        right: element[3]
+      };
+    }, head);
+  }
 
   function _inOrderArithmetic(root) {
       const result = [];
@@ -338,6 +339,42 @@
       console.log("[ri]-final", result)
       return result;
   };
+  
+  function negateComparison(comparison) {
+        switch (comparison) {
+            case "==":
+                return "!=";
+            case "!=":
+                return "==";
+            case ">":
+                return "<=";
+            case ">=":
+                return "<";
+            case "<":
+                return ">=";
+            case "<=":
+                return ">";
+            default:
+                break;
+        }
+    }
+    
+   function negateExpression(expr) {
+   		if (expr.type == "unaryBoolean") {
+			return {...expr, negated: true} 
+        }
+        else if (expr.type == "binaryBoolean") {
+        	return {...expr, comparison: negateComparison(expr.comparison)} 
+        }
+        else {
+        	return {...expr, 
+            		operator: expr.operator === "and" ? "or" : "and",
+                   	left: {...negateExpression(expr.left)},
+                    right: {...negateExpression(expr.right)}
+                   }
+        }
+   }
+  
 };
  
 Start
@@ -554,9 +591,9 @@ Boolean
 	= "True" {return {type:"boolean", value: true}}
     / "False" {return {type:"boolean", value: false}}
 
-BooleanExpression
-  = bool:Boolean {return { type:"unaryBoolean", comparison: {type:"boolean", value: bool} }}
-  / __ __ left:ArtihmeticExpression __ _ comparison:Comparison _  __ right:ArtihmeticExpression __ __ {
+BooleanExpressionTerm
+  = bool:Boolean {return { type:"unaryBoolean", comparison: { ...bool, type:"boolean" }} }
+  / left:ArtihmeticExpression _ comparison:Comparison _ right:ArtihmeticExpression {
   let leftReturn, rightReturn; 
     if(left.token === "stringConcatenation"){
 	    leftReturn = left.properties.addedStrings
@@ -591,30 +628,27 @@ BooleanExpression
       return { type:"unaryBoolean", comparison: {...strVal} }
     }
     else {
-      return { type:"unaryBoolean", comparison: {...val} } 
+    	return { type:"unaryBoolean", comparison: {...val}} } 
     }
-  }
-    
-ChainedBooleanExpression
-  = head:(NegatedBooleanExpression/BooleanExpression)
-    tail:(_ ("and" / "or") _ (NegatedBooleanExpression/BooleanExpression))
-    { return buildChainedBooleanExpression(head, tail); }
 
-ComplexChainedBooleanExpression
-  = head:ComplexChainedBooleanFactor tail:(_ ("and" / "or") _ ComplexChainedBooleanFactor)+ {
+BooleanExpression
+  = head:BooleanFactor tail:(_ ("and" / "or") _ BooleanFactor)* {
          return buildChainedBooleanExpression(head, tail);
   }
   
-ComplexChainedBooleanFactor
-  = "(" _ expr:ComplexChainedBooleanExpression _ ")" { return expr; }
-  / NegatedBooleanExpression/BooleanExpression
+BooleanFactor
+  = "(" _ expr:BooleanExpression _ ")" { return expr; }
+  / NegatedBooleanExpression
+  / BooleanExpressionTerm
 
 //change to immeadiately match correct condition, i.e. change "==" to "!="
 NegatedBooleanExpression
-= "not" _ expr:BooleanExpression {return {...expr, negated: true}}
+= "not" _ expr:BooleanFactor {
+		return negateExpression(expr)
+	}
 
 IfCondition
-  = ComplexChainedBooleanExpression / ChainedBooleanExpression / NegatedBooleanExpression / BooleanExpression
+  = BooleanExpression
  
 IfStatement
 	= IfToken _ condition:IfCondition _ ":"  _"\n"
@@ -726,6 +760,8 @@ ReservedWord
 / "pass"
 / "True"
 / "False"
+/ "and"
+/ "or"
  
 //taken from javascript parser
 Variable
