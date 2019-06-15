@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-06-14 01:56:50
+//Last modified : 2019-06-15 19:43:43
 
 {
 
@@ -395,9 +395,11 @@ SourceElement
 Statement
   = VariableAssignment
   / IfStatement
+  / Loop
   / BinaryExpression
   / Function
   / Literal
+  / LoopBreak
  
 BinaryExpression
   = expr:ArtihmeticExpression {return expr}
@@ -591,6 +593,11 @@ Boolean
 	= "True" {return {type:"boolean", value: true}}
     / "False" {return {type:"boolean", value: false}}
 
+BooleanExpression
+  = head:BooleanFactor tail:(_ ("and" / "or") _ BooleanFactor)* {
+         return buildChainedBooleanExpression(head, tail);
+  }
+
 BooleanExpressionTerm
   = bool:Boolean {return { type:"unaryBoolean", comparison: { ...bool, type:"boolean" }} }
   / left:ArtihmeticExpression _ comparison:Comparison _ right:ArtihmeticExpression {
@@ -630,12 +637,7 @@ BooleanExpressionTerm
     else {
     	return { type:"unaryBoolean", comparison: {...val}} } 
     }
-
-BooleanExpression
-  = head:BooleanFactor tail:(_ ("and" / "or") _ BooleanFactor)* {
-         return buildChainedBooleanExpression(head, tail);
-  }
-  
+    
 BooleanFactor
   = "(" _ expr:BooleanExpression _ ")" { return expr; }
   / NegatedBooleanExpression
@@ -646,21 +648,28 @@ NegatedBooleanExpression
 = "not" _ expr:BooleanFactor {
 		return negateExpression(expr)
 	}
-
-IfCondition
-  = BooleanExpression
  
 IfStatement
-	= IfToken _ condition:IfCondition _ ":"  _"\n"
+	= IfToken _ condition:BooleanExpression _ ":"  _"\n"
       body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
     [ \t\r]*ElseToken _ ":" _"\n"
       alternate: ([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
    {return {token: "ifStatement", properties: {condition, body, alternate}} }
    
-   / IfToken _ condition:IfCondition _ ":"  _"\n"
+   / IfToken _ condition:BooleanExpression _ ":"  _"\n"
       body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
    {return {token: "ifStatement", properties: {condition, body, alternate: null}} }
-   
+
+Loop
+ = "while" _ condition:BooleanExpression _ ":" _"\n"
+   body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
+   {return {token: "loop", properties: {condition, body}} }
+
+LoopBreak 
+ = "break" {return {token: "loopBreak", properties: {value: "break"}} }
+ / "continue" {return {token: "loopBreak", properties: {value: "continue"}} }
+ / "pass" {return {token: "loopBreak", properties: {value: "pass"}} }
+
 Comment
 	= value:$("#" _ ((VariableName/[/.,';?><":()0-9]) _)* _) {functionStack.push({token: "comment", value: value.slice(1)})}
  
@@ -748,6 +757,8 @@ InputToken      = "input"
  
 ReservedWord
 = "print"
+/ "in"
+/ "is"
 / "int"
 / "str"
 / "input"
@@ -762,6 +773,9 @@ ReservedWord
 / "False"
 / "and"
 / "or"
+/ "while"
+/ "for"
+/ "continue"
  
 //taken from javascript parser
 Variable

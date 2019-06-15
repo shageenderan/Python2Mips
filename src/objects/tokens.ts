@@ -8,9 +8,9 @@ export class DataObject {
 }
 
 export class Token {
-    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement";
+    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak";
     type?: string;
-    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties
+    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties
 }
 
 export interface StringConcatProperties {
@@ -34,6 +34,15 @@ export interface VariableAssignmentProperties {
 
     /** indicates the space taken by this variable(including the null terminator '\0') BEFORE this variable assignment */
     space?: number;
+}
+
+export interface LoopProperties {
+    condition: UnaryIfCondition | BinaryIfCondition | ChainedBooleanIfCondition;
+    body: Array<Token | DataObject>;
+}
+
+export interface LoopBreakProperties {
+    value: "pass" | "break" | "continue"
 }
 
 export interface UnaryIfCondition extends IfCondition {
@@ -98,4 +107,14 @@ export class ArtihmeticExpressionToken {
 export class IfToken {
     token: string;
     properties: IfTokenProperties;
+}
+
+export class LoopToken {
+    token: string;
+    properties: LoopProperties;
+}
+
+export class LoopBreakToken {
+    token: string;
+    properties: LoopBreakProperties
 }
