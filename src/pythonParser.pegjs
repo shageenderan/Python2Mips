@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-06-15 19:43:43
+//Last modified : 2019-06-18 01:01:02
 
 {
 
@@ -144,8 +144,13 @@
           //variable already in datastack
           console.log("assignValueToVariable> variable has been assigned before")
           console.log("assignValueToVariable>", dataStack)
+          console.log("assignValueToVariable>", functionStack)
           const initialDeclarationIndex = functionStack.findIndex(elem => elem.properties.variable === variable)
-          functionStack[initialDeclarationIndex] = { ...functionStack[initialDeclarationIndex], properties: { ...functionStack[initialDeclarationIndex].properties, value: { ...functionStack[initialDeclarationIndex].properties.value, initialDeclaration: false } } }
+          console.log("assignValueToVariable> initial declaration index: ", initialDeclarationIndex)
+          if (initialDeclarationIndex !== -1) {
+          		//reset initial declaration to false
+                functionStack[initialDeclarationIndex] = { ...functionStack[initialDeclarationIndex], properties: { ...functionStack[initialDeclarationIndex].properties, value: { ...functionStack[initialDeclarationIndex].properties.value, initialDeclaration: false } } }
+          }
           const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
           console.log("assignValueToVariable>", variableIndex)
           dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value ? value : 4, variable)} #{enter a more exact space for variable: '${variable}'}`
@@ -663,7 +668,10 @@ IfStatement
 Loop
  = "while" _ condition:BooleanExpression _ ":" _"\n"
    body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
-   {return {token: "loop", properties: {condition, body}} }
+   {return {token: "loop", properties: {type:"while", condition, body}} }
+   
+ / "for" _ val:Variable _ "in" _ "range" _ "(" _ start:ArtihmeticExpression _ ","? _ end:ArtihmeticExpression? _ ","? _ step:ArtihmeticExpression? _")" 
+ {return {type:"for", val, start,end, step}}
 
 LoopBreak 
  = "break" {return {token: "loopBreak", properties: {value: "break"}} }
