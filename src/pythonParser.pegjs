@@ -2,12 +2,14 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-06-18 01:01:02
+//Last modified : 2019-06-22 17:28:09
 
 {
 
   const dataStack = [];
   const functionStack = [];
+  let prevIndentCount = 0;
+  function print(...s) { console.log(...s); }
   let variables = {}, stringVariables = {}, stringPresent = false, i = 0;
   function extractList(list, index) {
       return list.map(function (element) { return element[index]; });
@@ -168,6 +170,23 @@
           return -1
       }
       console.log("assignValueToVariable>", "variables after this assignment", variables)
+  }
+
+  //looks for a variable in the function stack
+  function findVariableInStack(variable) {
+      const extractedBodies = functionStack.flatMap(elem => {
+          elem.token === "loop" || elem.token === "ifStatement" ? elem.properties.body : elem
+      })
+      console.log(extractedBodies)
+      return functionStack.findIndex(elem => {elem.properties.variable === variable})
+  }
+
+  function setInitialDeclarationFalse(body) {
+    const assignmentIndex = body.findIndex(elem => elem.token === "variableAssignment")
+    if (assignmentIndex !== -1) {
+        body[assignmentIndex] = {...body[assignmentIndex], properties: {...body[assignmentIndex].properties, value:{...body[assignmentIndex].properties.value, initialDeclaration: false} } }
+    }
+    return body
   }
 
   function addStringToData(str) {
@@ -414,98 +433,91 @@ VariableAssignment
       : {token: "variableAssignment", properties:{variable:variable.value, space: 4, value:{...value, type: "int", initialDeclaration: true}} } }
   / variable:Variable _ "=" _ 'None' {}
   / variable:(Variable) _ sep:("+=" / "-=" / "*=" / "/=" /"=") _ value:ArtihmeticExpression  {
-  //console.log("myVal", value)
+    //console.log("myVal", value)
     if(sep !== "=" && value.type === "artihmeticExpression"){
-                             const operator = sep.split("=")[0]
-      const arValue = value
-      value = {
-                 token: "artihmeticExpression",
-                 properties: {
-                    operator,
-                    left: {
-                       ...variable
-                    },
+        const operator = sep.split("=")[0]
+        const arValue = value
+        value = {
+            token: "artihmeticExpression",
+            properties: {
+                operator,
+                left: {
+                    ...variable
+                },
                     right: {
-                       ...value
-                    }
-                 },
-                 type:"artihmeticExpression",
-               }
+                    ...value
+                }
+            },
+                type:"artihmeticExpression",
+        }
     }
     if(sep === "+=" && !(value.type === "artihmeticExpression")){
-                             if(value.type === "string"){
-                             const strVal = addStringToData(value.value)
-          value = {
-              token: "stringConcatenation",
-              properties: {
-                  addedStrings: [
-                      variable, strVal
-                  ]
-              }
-          }
-      }
-      else if(value.type === "int"){
-                             const intVal = value
-                             value = {
-                 token: "artihmeticExpression",
-                 properties: {
+        if(value.type === "string"){
+            const strVal = addStringToData(value.value)
+            value = {
+                token: "stringConcatenation",
+                properties: {
+                    addedStrings: [variable, strVal]
+                }
+            }
+        }
+        else if(value.type === "int"){
+            const intVal = value
+            value = {
+                token: "artihmeticExpression",
+                properties: {
                     operator: "+",
                     left: {
-                       ...variable
+                        ...variable
                     },
                     right: {
-                       ...intVal
+                        ...intVal
                     }
-                 },
-                 type:"artihmeticExpression",
-               }
-
-      }
-      else if(value.type === "stringConcat"){
-          value = {
-                             token: "stringConcatenation",
-              properties: {
-                             addedStrings: [
-                             variable,
-                      ...value.properties.addedStrings
-                  ]
-              },
-              type: "stringConcat"
-          }
-      }
-      console.log("[ru]", value, value.type)
+                },
+                type:"artihmeticExpression",
+            }
+        }
+        else if(value.type === "stringConcat"){
+            value = {
+                token: "stringConcatenation",
+                properties: {
+                    addedStrings: [variable, ...value.properties.addedStrings]
+                },
+                type: "stringConcat"
+            }
+        }
+        console.log("[ru]", value, value.type)
     }
-                            if(value.token === "stringConcatenation"){
-                             console.log("[ri] we have a string concat");
-          const space = variables[variable.value].space ? variables[variable.value].space : 0;
-          console.log("[owo]", value, variable.value);
-          return assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? {token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }
-      : {token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}
-      }
-                            else{
-          if(assignValueToVariable(variable.value, value.type, value.value) === -1) {
+    if(value.token === "stringConcatenation"){
+        console.log("[ri] we have a string concat");
+        const space = variables[variable.value].space ? variables[variable.value].space : 0;
+        console.log("[owo]", value, variable.value);
+        return assignValueToVariable(variable.value, "stringConcatenation", value) === -1 ? {token: "variableAssignment", properties:{variable:variable.value, space, value: {...value, type: "string"}} }
+            : {token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true, type: "string"}}}
+    }
+    else{
+        if(assignValueToVariable(variable.value, value.type, value.value) === -1) {
             if (value.type === "string"){
-                                                         const space = variables[variable.value].space ? variables[variable.value].space : 0 ;
-                                                         return {token: "variableAssignment", properties:{variable:variable.value, space, value}}
+                const space = variables[variable.value].space ? variables[variable.value].space : 0 ;
+                return {token: "variableAssignment", properties:{variable:variable.value, space, value}}
             }
             else{
-                              return value.type === "int" ? {token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int"}}, }
-                             : {token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, }
+                return value.type === "int" ? {token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int"}}, }
+                : {token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, }
             }
-
-         }
-         else{
-                               if (value.type === "string"){
-                             const space = variables[variable.value].space ? variables[variable.value].space : 0 ;
-                             return {token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true}}}
+        }
+        else{
+            if (value.type === "string"){
+            const space = variables[variable.value].space ? variables[variable.value].space : 0 ;
+            return {token: "variableAssignment", properties:{variable:variable.value, space, value:{...value, initialDeclaration: true}}}
             }
             else{
-                             return value.type === "int" ? {token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int", initialDeclaration: true}}, }
-                             : {token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, }
+                return value.type === "int" ? {token: "variableAssignment", properties:{variable:variable.value, space: 4, value: {...value, type: "int", initialDeclaration: true}}, }
+                : {token: "variableAssignment", properties:{variable:variable.value, space: 4, value}, }
             }
-                                                         }
-         }
-                             }
+        }
+    }
+}
   / variable:(Variable) _ "=" _ value:Boolean {return assignValueToVariable(variable.value, value.type, value.value) === -1 ? {token: "variableAssignment", properties:{variable:variable.value, space: 4, value}}
       : {token: "variableAssignment", properties:{variable:variable.value, space: 4, value:{...value, initialDeclaration: true}}} }
   / variable:(Variable) _ "=" _ value:(StringLiteral/IntegerLiteral) {const space = variables[variable.value].space ? variables[variable.value].space : 0 ; return assignValueToVariable(variable.value, value.type, value.value) === -1 ? {token: "variableAssignment", properties:{variable:variable.value, space, value}}
@@ -656,19 +668,23 @@ NegatedBooleanExpression
  
 IfStatement
 	= IfToken _ condition:BooleanExpression _ ":"  _"\n"
-      body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
-    [ \t\r]*ElseToken _ ":" _"\n"
-      alternate: ([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
-   {return {token: "ifStatement", properties: {condition, body, alternate}} }
+      Indent head:(Statement) tail:(("\n") Samedent statement:Statement {return statement})* Dedent _ "\n" _
+      ElseToken _ ":" _"\n"
+      Indent altHead:(Statement) altTail:(("\n") Samedent altStatement:Statement {return altStatement})* Dedent
+   {   const body = [head, ...tail]
+       const alternate = [altHead, ...altTail]
+       return {token: "ifStatement", properties: {condition, body, alternate}} }
    
    / IfToken _ condition:BooleanExpression _ ":"  _"\n"
-      body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
-   {return {token: "ifStatement", properties: {condition, body, alternate: null}} }
+     Indent head:(Statement) tail:(("\n") Samedent statement:Statement {return statement})* Dedent
+   {   const body = [head, ...tail]
+       return {token: "ifStatement", properties: {condition, body, alternate: null}} }
 
 Loop
  = "while" _ condition:BooleanExpression _ ":" _"\n"
-   body:([ \t\r]+ statement:Statement (_"\n"/ ";"/_) {return statement})+ 
-   {return {token: "loop", properties: {type:"while", condition, body}} }
+   Indent head:(Statement) tail:("\n" Samedent statement:Statement {return statement})* Dedent
+   {   const body = setInitialDeclarationFalse([head, ...tail])
+       return {token: "loop", properties: {type:"while", condition, body}} }
    
  / "for" _ val:Variable _ "in" _ "range" _ "(" _ start:ArtihmeticExpression _ ","? _ end:ArtihmeticExpression? _ ","? _ step:ArtihmeticExpression? _")" 
  {return {type:"for", val, start,end, step}}
@@ -870,8 +886,52 @@ Nl = [\u16EE-\u16F0\u2160-\u2182\u2185-\u2188\u3007\u3021-\u3029\u3038-\u303A\uA
 Pc = [\u005F\u203F-\u2040\u2054\uFE33-\uFE34\uFE4D-\uFE4F\uFF3F]
 // Separator, Space
 Zs = [\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]
- 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Indents used for if's, loop's and functions
+Indent 'indent'
+    = i:("    "+) { 
+        let currentIndentCount = i.toString().replace(/,/g, "").length;
+        if (currentIndentCount === prevIndentCount + 4) { 
+            // DEBUG //
+            print("=== Indent ===");
+            print("    current:"+currentIndentCount); 
+            print("    previous:"+prevIndentCount);
+            print("    lineNumber:"+location().start.line); 
+            // DEBUG //
+            prevIndentCount += 4;
+            return "[indent]";
+        }
+        error("error: expected a 4-space indentation here!")
+    } // 4 spaces 
+
+Samedent 'samedent'
+    = s:("    "+ / "") &{
+        let currentIndentCount = s.toString().replace(/,/g, "").length;
+        if (currentIndentCount === prevIndentCount) {
+            print("=== Samedent ===");
+            return true;
+        }
+        return false;
+    }
+
+Dedent 'dedent'
+    = d:("    "+ / "") {
+        let currentIndentCount = d.toString().replace(/,/g, "").length;
+        if (currentIndentCount < prevIndentCount) {
+            // DEBUG //
+            print("=== Dedent ===");
+            print("    current:"+currentIndentCount); 
+            print("    previous:"+prevIndentCount);
+            print("    lineNumber:"+location().start.line); 
+            // DEBUG //
+            prevIndentCount -= 4;
+            return "[dedent]";
+        }
+        error("error: expected a 4-space dedentation here!");
+    }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Artihmetic Expressions
 // Simple Arithmetics Grammar
 // ==========================
