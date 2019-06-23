@@ -686,8 +686,18 @@ Loop
    {   const body = setInitialDeclarationFalse([head, ...tail])
        return {token: "loop", properties: {type:"while", condition, body}} }
    
- / "for" _ val:Variable _ "in" _ "range" _ "(" _ start:ArtihmeticExpression _ ","? _ end:ArtihmeticExpression? _ ","? _ step:ArtihmeticExpression? _")" 
- {return {type:"for", val, start,end, step}}
+ / "for" _ variable:Variable _ "in" _ "range" _ "(" _ start:ArtihmeticExpression _ ","? _ end:ArtihmeticExpression? _ ","? _ increment:ArtihmeticExpression? _")" _ ":" _ "\n"
+ Indent head:(Statement) tail:("\n" Samedent statement:Statement {return statement})* Dedent
+ {   const body = setInitialDeclarationFalse([head, ...tail])
+ 	 if (!end) {
+		end = start
+        start = {
+                type: "int",
+                value: 0
+            	}
+     }
+     assignValueToVariable(variable.value, "int", 0)
+ 	 return {token: "loop", properties:{type:"for", variable, start,end, increment: increment ? increment : {type:"int", value:1}, body} } }
 
 LoopBreak 
  = "break" {return {token: "loopBreak", properties: {value: "break"}} }
@@ -931,7 +941,7 @@ Dedent 'dedent'
         error("error: expected a 4-space dedentation here!");
     }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Artihmetic Expressions
 // Simple Arithmetics Grammar
 // ==========================
