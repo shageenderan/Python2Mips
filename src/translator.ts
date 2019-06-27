@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryIfCondition, BinaryIfCondition, ChainedBooleanIfCondition } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -17,6 +17,11 @@ export default class Translate {
     /** Stack to keep track of if statements being used, especially when nested */
     ifStack: Array<number> = [];
 
+    /** Current loop statement */
+    loopCounter: number = -1;
+    /** Stack to keep track of loop statements being used, especially when nested */
+    loopStack: Array<number> = [];
+
     public translate = (pyCode: Token) => {
         let mipsCode = ""
         switch (pyCode.token) {
@@ -34,6 +39,13 @@ export default class Translate {
                 break;
             case "ifStatement":
                 mipsCode += this.translateIfStatement(pyCode as IfToken);
+                break;
+            case "loop":
+                mipsCode += this.translateLoop(pyCode as LoopToken);
+                break;
+            case "loopBreak":
+                mipsCode += this.translateLoopBreak(pyCode as LoopBreakToken);
+                break;
             default:
                 //mipsCode += `#some error occured got token: ${pyCode.token}`;;
                 break;
@@ -66,7 +78,7 @@ export default class Translate {
                 mipsCode += `addi $a0 $0 ${(printToken as DataObject).value}\naddi $v0, $0, 1\nsyscall\n` //printing single integer
                 break;
             case "variable":
-                mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n` //printing single variable
+                mipsCode += `lw $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 1\nsyscall\n` //printing single integer
                 break;
             case "variable-int":
                 mipsCode += `lw $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 1\nsyscall\n` //printing single integer variable
@@ -126,7 +138,7 @@ export default class Translate {
     /** Translates variable assignment tokens to mips code */
     public translateVariableAssignment(token: VariableAssignmentToken): string {
         let variableAssignmentMips = ""
-        if ((token.properties.value as VariableAssignmentDataObject).value || (token.properties.value as VariableAssignmentDataObject).type === "boolean") {
+        if ((token.properties.value as VariableAssignmentDataObject).value || (token.properties.value as VariableAssignmentDataObject).value === 0 ||(token.properties.value as VariableAssignmentDataObject).type === "boolean") {
             const dataObjToken = token.properties.value as VariableAssignmentDataObject;
             console.log(dataObjToken, !dataObjToken.initialDeclaration)
             if (!dataObjToken.initialDeclaration) {
@@ -233,6 +245,51 @@ export default class Translate {
         return storeStringMips;
     }
 
+    /** Translates loop statements to mips code */
+    public translateLoop(token: LoopToken) {
+        this.loopStack.push(++this.loopCounter)
+        let loopMips = "";
+        //translate condition
+        loopMips += `loop${this.loopCounter}:\n`
+        const exitLoop = `exitLoop${this.loopCounter}\n`
+        loopMips += this.translateBooleanCondition(token.properties.condition, exitLoop)
+        if (token.properties.condition.type !== "chainedBoolean") {
+            loopMips += `${exitLoop}\n`
+        }
+        //translate body
+        console.log("loop body:", token.properties.body)
+        token.properties.body.forEach(elem => {
+            if ((elem as Token).token){
+                //elem is a token
+                console.log("loop translating", elem)
+                loopMips += this.translate(elem as Token).mipsCode
+            }
+        })
+        const loopCounter = this.loopStack.pop();
+        loopMips += `j loop${loopCounter}\n\n`;
+        loopMips += `exitLoop${loopCounter}:`;
+        return loopMips;
+    }
+
+    /** Translates Loop Breaks (continue, break, pass) */
+    public translateLoopBreak(token: LoopBreakToken) {
+        let loopBreakMips = ""
+        switch (token.properties.value) {
+            case "break":
+                loopBreakMips += `j exitLoop${this.loopCounter}\n`
+                break;
+            case "continue":
+                loopBreakMips += `j loop${this.loopStack[0]}\n`
+                break;
+            case "pass":
+                //pass does nothing
+                break;
+            default:
+                break;
+        }
+        return loopBreakMips;
+    }
+
     /** Translates if statements(including corresponding else) to mips code */
     public translateIfStatement(token: IfToken) {
         this.ifStack.push(++this.ifCounter)
@@ -246,7 +303,7 @@ export default class Translate {
             mipsCode += `else${ifCounter}:\n`;
             mipsCode += this.translateIfBody(token.properties.alternate);
         }
-        mipsCode += `\nexit${ifCounter}: `;
+        mipsCode += `\nexit${ifCounter}: \n`;
         return mipsCode;
     }
 
@@ -258,8 +315,8 @@ export default class Translate {
         if (val1.type.includes("string") && val2.type.includes("string")) {
             return true
         }
-        else if ( (val1.type.includes("int") || val1.type === "artihmeticExpression" || val1.type.includes("boolean"))  
-               && (val2.type.includes("int") || val2.type === "artihmeticExpression" || val2.type.includes("boolean")) ) {
+        else if ( (val1.type.includes("int") || val1.type.includes("artihmeticExpression") || val1.type.includes("boolean"))  
+               && (val2.type.includes("int") || val2.type.includes("artihmeticExpression")  || val2.type.includes("boolean")) ) {
             return true
         } 
         else{
@@ -267,32 +324,42 @@ export default class Translate {
         }
     }
 
-    /** Translates an if condition to equivalent mips code */
-    public translateIfCondition(condition: UnaryIfCondition | BinaryIfCondition | ChainedBooleanIfCondition, alternatePresent: boolean): string {
-        let ifConditionMips = ""
-        const jumpTo = alternatePresent ? "else" : "exit"
+    /** Translates a boolean condition to equivalent mips code 
+     * @param jumpTo exclusively used by chainedBoolean and is the label to jump to if this condition is True
+    */
+    public translateBooleanCondition(condition: UnaryCondition | BinaryCondition | ChainedBooleanCondition, jumpTo: string) {
+        let booleanMips = "";
         switch (condition.type) {
             case "unaryBoolean":
-                ifConditionMips += this._translateUnaryBoolean(condition as UnaryIfCondition, (condition as UnaryIfCondition).negated);
-                ifConditionMips += `${jumpTo}${this.ifCounter}\n`
+                booleanMips += this._translateUnaryBoolean(condition as UnaryCondition, (condition as UnaryCondition).negated);
                 break;
             case "binaryBoolean":
-                const binaryCondition = condition as BinaryIfCondition
+                const binaryCondition = condition as BinaryCondition
                 if (!this._isSameType(binaryCondition.left as DataObject, binaryCondition.right as DataObject)) {
-                    ifConditionMips += `#This condition is comparing objects of types ${binaryCondition.left.type} and ${binaryCondition.right.type} and will never evaluate to true as comparands are of different types hence, the program just skips it\n
-                    j ${jumpTo}${this.ifCounter}\n`
+                    booleanMips += `#This condition is comparing objects of types ${binaryCondition.left.type} and ${binaryCondition.right.type} and will never evaluate to true as comparands are of different types hence, the program just skips it\n
+                    j `
                 }
                 else{
-                    ifConditionMips += this._translateBinaryBoolean(binaryCondition)
-                    ifConditionMips += `${jumpTo}${this.ifCounter}\n`
+                    booleanMips += this._translateBinaryBoolean(binaryCondition)
                 }
                 break;
             case "chainedBoolean":
-                ifConditionMips += this._translateChainedBoolean(condition as ChainedBooleanIfCondition, jumpTo);
+                booleanMips += this._translateChainedBoolean(condition as ChainedBooleanCondition, jumpTo);
                 break;
 
             default:
                 return `#some error occured, got type: ${condition.type}\n`;
+        }
+        return booleanMips;
+    }
+
+    /** Translates an if condition to equivalent mips code */
+    public translateIfCondition(condition: UnaryCondition | BinaryCondition | ChainedBooleanCondition, alternatePresent: boolean): string {
+        let ifConditionMips = ""
+        const jumpTo = alternatePresent ? `else${this.ifCounter}` : `exit${this.ifCounter}`
+        ifConditionMips += this.translateBooleanCondition(condition, jumpTo)
+        if (condition.type !== "chainedBoolean") {
+            ifConditionMips += `${jumpTo}\n`
         }
         return ifConditionMips;
     }
@@ -316,16 +383,16 @@ export default class Translate {
         }
     }
 
-    private _translateChainedBoolean(condition: ChainedBooleanIfCondition, jumpTo: string) {
+    private _translateChainedBoolean(condition: ChainedBooleanCondition, jumpTo: string) {
         if (condition.left.type === "chainedBoolean" || condition.right.type === "chainedBoolean") {
-            return this._translateComplexChaninedBoolean(condition, "$t0") + `beqz $t0, ${jumpTo}${this.ifCounter}\n`
+            return this._translateComplexChaninedBoolean(condition, "$t0") + `beqz $t0, ${jumpTo}\n`
         }
         else {
             return this._translateSimpleChaninedBoolean(condition, jumpTo)
         }
     }
 
-    private _translateComplexChaninedBoolean(condition: ChainedBooleanIfCondition, register: string): string {
+    private _translateComplexChaninedBoolean(condition: ChainedBooleanCondition, register: string): string {
         let chainedBooleanMips = "";
         // Evaluates the left and right hand side before comparing the bits. 0 == False and !0 is True. Left hand side should be evaluated into $s0
         // with a value of 0 indicating the expression is false or not 0 indicating a true(i.e. -2 and 2 are considered true but 0 is false)
@@ -333,13 +400,13 @@ export default class Translate {
         //Translate left condition
         switch (condition.left.type) {
             case "unaryBoolean":
-                chainedBooleanMips += this._evaluateUnaryBoolean(condition.left as UnaryIfCondition, "$s0");
+                chainedBooleanMips += this._evaluateUnaryBoolean(condition.left as UnaryCondition, "$s0");
                 break;
             case "binaryBoolean":
-                chainedBooleanMips += this._evaluateBinaryBoolean(condition.left as BinaryIfCondition, "$s0");
+                chainedBooleanMips += this._evaluateBinaryBoolean(condition.left as BinaryCondition, "$s0");
                 break;
             case "chainedBoolean":
-                chainedBooleanMips += this._translateComplexChaninedBoolean(condition.left as ChainedBooleanIfCondition, "$s0");
+                chainedBooleanMips += this._translateComplexChaninedBoolean(condition.left as ChainedBooleanCondition, "$s0");
                 break;
             default:
                 break;
@@ -348,13 +415,13 @@ export default class Translate {
         //Translate right condition
         switch (condition.right.type) {
             case "unaryBoolean":
-                chainedBooleanMips += this._evaluateUnaryBoolean(condition.right as UnaryIfCondition, "$s1");
+                chainedBooleanMips += this._evaluateUnaryBoolean(condition.right as UnaryCondition, "$s1");
                 break;
             case "binaryBoolean":
-                chainedBooleanMips += this._evaluateBinaryBoolean(condition.right as BinaryIfCondition, "$s1");
+                chainedBooleanMips += this._evaluateBinaryBoolean(condition.right as BinaryCondition, "$s1");
                 break;
             case "chainedBoolean":
-                chainedBooleanMips += this._translateComplexChaninedBoolean(condition.right as ChainedBooleanIfCondition, "$s1");
+                chainedBooleanMips += this._translateComplexChaninedBoolean(condition.right as ChainedBooleanCondition, "$s1");
                 break;
             default:
                 break;
@@ -371,7 +438,7 @@ export default class Translate {
         return chainedBooleanMips;
     }
 
-    private _evaluateUnaryBoolean(condition: UnaryIfCondition, register: "$s0" | "$s1"): string {
+    private _evaluateUnaryBoolean(condition: UnaryCondition, register: "$s0" | "$s1"): string {
         let evaluatedUnaryMips = ""
         switch (condition.comparison.type) {
             case "int":
@@ -406,7 +473,7 @@ export default class Translate {
         return evaluatedUnaryMips;
     }
 
-    private _evaluateBinaryBoolean(condition: BinaryIfCondition, register: "$s0" | "$s1"): string {
+    private _evaluateBinaryBoolean(condition: BinaryCondition, register: "$s0" | "$s1"): string {
         let evaluatedBinaryMips = "", leftComparand = "" , rightComparand = "";
         let comparingStrings = false
         if (condition.left.type.includes("string") || condition.right.type.includes("string") ) {
@@ -498,18 +565,18 @@ export default class Translate {
     }
 
     /** Translates simple chained if conditions i.e. if x and y: ... to mips code */
-    private _translateSimpleChaninedBoolean(condition: ChainedBooleanIfCondition, jumpTo: string): string {
+    private _translateSimpleChaninedBoolean(condition: ChainedBooleanCondition, jumpTo: string): string {
         let chainedBooleanMips = ""
         if (condition.operator === "and") {
             //Translate left
             switch (condition.left.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition, (condition.left as UnaryIfCondition).negated);
-                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryCondition, (condition.left as UnaryCondition).negated);
+                    chainedBooleanMips += `${jumpTo}\n`
                     break;
                 case "binaryBoolean":
-                    chainedBooleanMips += this._translateBinaryBoolean(condition.left as BinaryIfCondition);
-                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    chainedBooleanMips += this._translateBinaryBoolean(condition.left as BinaryCondition);
+                    chainedBooleanMips += `${jumpTo}\n`
                     break;
                 default:
                     break;
@@ -517,12 +584,12 @@ export default class Translate {
             //Translate right
             switch (condition.right.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition, (condition.left as UnaryIfCondition).negated);
-                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryCondition, (condition.left as UnaryCondition).negated);
+                    chainedBooleanMips += `${jumpTo}\n`
                     break;
                 case "binaryBoolean":
-                    chainedBooleanMips += this._translateBinaryBoolean(condition.right as BinaryIfCondition);
-                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    chainedBooleanMips += this._translateBinaryBoolean(condition.right as BinaryCondition);
+                    chainedBooleanMips += `${jumpTo}\n`
                     break;
                 default:
                     break;
@@ -530,16 +597,16 @@ export default class Translate {
         }
         else {  
             //or
-            const negatedLeft = {...condition.left, comparison: this._negateComparsion((condition.left as BinaryIfCondition).comparison as String)}
+            const negatedLeft = {...condition.left, comparison: this._negateComparsion((condition.left as BinaryCondition).comparison as String)}
             console.log("NEGATED IF OR", negatedLeft)
             //Translate left
             switch (negatedLeft.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryIfCondition, !(condition.left as UnaryIfCondition).negated);
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.left as UnaryCondition, !(condition.left as UnaryCondition).negated);
                     chainedBooleanMips += `ifBody${this.ifCounter}\n`
                     break;
                 case "binaryBoolean":
-                    chainedBooleanMips += this._translateBinaryBoolean(negatedLeft as BinaryIfCondition);
+                    chainedBooleanMips += this._translateBinaryBoolean(negatedLeft as BinaryCondition);
                     chainedBooleanMips += `ifBody${this.ifCounter}\n`
                     break;
                 default:
@@ -548,12 +615,12 @@ export default class Translate {
             //Translate right
             switch (condition.right.type) {
                 case "unaryBoolean":
-                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryIfCondition, (condition.left as UnaryIfCondition).negated);
-                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    chainedBooleanMips += this._translateUnaryBoolean(condition.right as UnaryCondition, (condition.left as UnaryCondition).negated);
+                    chainedBooleanMips += `${jumpTo}\n`
                     break;
                 case "binaryBoolean":
-                    chainedBooleanMips += this._translateBinaryBoolean(condition.right as BinaryIfCondition);
-                    chainedBooleanMips += `${jumpTo}${this.ifCounter}\n`
+                    chainedBooleanMips += this._translateBinaryBoolean(condition.right as BinaryCondition);
+                    chainedBooleanMips += `${jumpTo}\n`
                     break;
                 default:
                     break;
@@ -565,7 +632,7 @@ export default class Translate {
     }
 
     /** Translates unary if conditions i.e. if x: ... to mips code */
-    private _translateUnaryBoolean(condition: UnaryIfCondition, negated = false): string {
+    private _translateUnaryBoolean(condition: UnaryCondition, negated = false): string {
         let ifUnaryBoolean = ""
         ifUnaryBoolean += this._translateIfConditionComparand(condition.comparison as DataObject, "$t0")
         if (negated) {
@@ -639,7 +706,7 @@ export default class Translate {
     }
 
     /** Translates binary if conditions i.e. if x > y: ... to mips code */
-    private _translateBinaryBoolean(condition: BinaryIfCondition): string{
+    private _translateBinaryBoolean(condition: BinaryCondition): string{
         let ifBinaryBoolean = ""
         //comparands are of the same type
         if (condition.left.type.includes("string")){
@@ -718,6 +785,7 @@ export default class Translate {
         body.forEach(elem => {
             if ((elem as Token).token){
                 //elem is a token
+                console.log("if translating", elem)
                 ifBodyMips += this.translate(elem as Token).mipsCode
             }
         })
@@ -882,7 +950,7 @@ export default class Translate {
             }
             else {
                 //left
-                if (mipsOperation.left.type === "variable") {
+                if (mipsOperation.left.type.includes("variable")) {
                     mipsCode += `lw ${leftRegister}, ${mipsOperation.left.value}\n`
                 }
                 else if (mipsOperation.left.type === "int") {
@@ -894,7 +962,7 @@ export default class Translate {
 
                 //right
                 if (mipsOperation.left.type === "register") {
-                    if (mipsOperation.right.type === "variable") {
+                    if (mipsOperation.right.type.includes("variable")) {
                         mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
                     }
                     else if (mipsOperation.right.type === "int") {
@@ -903,7 +971,7 @@ export default class Translate {
                     rightRegister = freeRegister;
                 }
                 else {
-                    if (mipsOperation.right.type === "variable") {
+                    if (mipsOperation.right.type.includes("variable")) {
                         mipsCode += `lw ${rightRegister}, ${mipsOperation.right.value}\n`
                     }
                     else if (mipsOperation.right.type === "int") {
@@ -922,7 +990,7 @@ export default class Translate {
             }
             else {
                 //left
-                if (mipsOperation.left.type === "variable") {
+                if (mipsOperation.left.type.includes("variable")) {
                     mipsCode += `lw ${leftRegister}, ${mipsOperation.left.value}\n`
                 }
                 else if (mipsOperation.left.type === "int") {
@@ -933,7 +1001,7 @@ export default class Translate {
                 }
                 //right
                 if (mipsOperation.left.type === "register") {
-                    if (mipsOperation.right.type === "variable") {
+                    if (mipsOperation.right.type.includes("variable")) {
                         mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
                     }
                     else if (mipsOperation.right.type === "int") {
@@ -942,7 +1010,7 @@ export default class Translate {
                     rightRegister = freeRegister;
                 }
                 else {
-                    if (mipsOperation.right.type === "variable") {
+                    if (mipsOperation.right.type.includes("variable")) {
                         mipsCode += `lw ${rightRegister}, ${mipsOperation.right.value}\n`
                     }
                     else if (mipsOperation.right.type === "int") {
@@ -963,7 +1031,7 @@ export default class Translate {
             }
             else {
                 //left
-                if (mipsOperation.left.type === "variable") {
+                if (mipsOperation.left.type.includes("variable")) {
                     mipsCode += `lw ${leftRegister}, ${mipsOperation.left.value}\n`
                 }
                 else if (mipsOperation.left.type === "int") {
@@ -974,7 +1042,7 @@ export default class Translate {
                 }
                 //right
                 if (mipsOperation.left.type === "register") {
-                    if (mipsOperation.right.type === "variable") {
+                    if (mipsOperation.right.type.includes("variable")) {
                         mipsCode += `lw ${freeRegister}, ${mipsOperation.right.value}\n`
                     }
                     else if (mipsOperation.right.type === "int") {
@@ -983,7 +1051,7 @@ export default class Translate {
                     rightRegister = freeRegister;
                 }
                 else {
-                    if (mipsOperation.right.type === "variable") {
+                    if (mipsOperation.right.type.includes("variable")) {
                         mipsCode += `lw ${rightRegister}, ${mipsOperation.right.value}\n`
                     }
                     else if (mipsOperation.right.type === "int") {

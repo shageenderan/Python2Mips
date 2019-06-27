@@ -93,6 +93,41 @@ if x > 10 and x % 5 == 0 and not x == 5:
 else:
     print("x is either 5, not divisible by 5, or smaller than 10")
 `
+const whileLoop = `x = 1
+while x+1 < 5:
+    y = 1
+    print(x)
+    while y < 3:
+        print(y)
+        y+=1
+    x+=1
+print("done loop")`
+const forLoop = `y = int(input("how many times to repeat?"))
+for x in range(y):
+    print("hello world")
+for x in range(0,10,2):
+    print(x)`
+const nestedFor = `for i in range(3):
+    for j in range(i, 3):
+        print(i, j)`
+const loopBreaks = `i = 1
+j = 0
+while i < 6:        
+    print(i)
+    while j < 6:  
+        j += 1 
+        print(j)
+        if j == 3:
+            continue
+        break
+    i += 1
+
+while i <= 12:
+    i+=1
+    if i == 9:
+        continue
+    print("second i", i)`
+
 
 export interface parserOutput {
     data: Array<string>;
@@ -100,10 +135,19 @@ export interface parserOutput {
 }
 
 //const x:Token<PrintToken> = {token:{}};
+const compareDataSegment = (a: string, b: string) => {
+    if(a.slice(a.indexOf(".") + 1, a.indexOf(".") + 6) === "space") {
+        return -1
+    }
+    if(b.slice(b.indexOf(".") + 1, b.indexOf(".") + 6) === "space") {
+        return 1
+    }
+    return a.slice(a.indexOf(".") + 1) > b.slice(b.indexOf(".")) + 1 ? 1 : -1
+}
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(testNotIf) as parserOutput;
+    const sampleOutput: parserOutput = parse(loopBreaks) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []
@@ -113,11 +157,11 @@ try {
         text.push(translated.mipsCode)
         functions.push(...translated.functions)
     })
-    console.log(sampleOutput.data)
+    console.log(sampleOutput.data.sort(compareDataSegment))
     console.log(text)
     console.log(".data")
     sampleOutput.data.map(elem => console.log(elem));
-    console.log("\n.text\n")
+    console.log("\n.text")
     text.filter(elem => elem === '' ? false : true).forEach(elem => console.log(elem));
     console.log("addi $v0, $0, 10\nsyscall\n") //exit)
     functions.filter((item, index) => functions.indexOf(item) >= index).forEach(elem => console.log(mipsFunctions[elem] ? mipsFunctions[elem] : ""));
