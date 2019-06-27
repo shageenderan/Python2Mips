@@ -51,8 +51,19 @@ To Do
 Important 
  - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. 
   in memory not x: .space 4.
- - for loops
- - while loops
+ - fix parsing indentations. i.e. 
+   while x > 3:
+      while y < 2:
+          print(y)
+          y += 2
+      x -= 1
+   the x above is parsed under the body of the second while instead of the first.
+   2 fixes
+   1) look into indent, dedent, samedent [better but much harder]
+   2) write code to translate input file of valid python where indents are replaced to something easier to parse, such as '{' [easier but try to avoid at all cost]
+ [DONE] while loops
+ [DONE] for loops
+  [FIXED] continue statement bug, supposed to jump to most outer while loop 
  - arrays
  - functions
  - translation for comments
