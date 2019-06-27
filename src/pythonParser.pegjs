@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-06-22 17:28:09
+//Last modified : 2019-06-27 17:22:51
 
 {
 
@@ -23,7 +23,10 @@
       return value !== null ? value : [];
   }
 
-
+  function flatten(arr) {
+    //to flat single level array
+  	return arr.reduce((acc, val) => acc.concat(val), []);// [1, 2, 3, 4]
+  }
 
   function calculateSpaceNeeded(value, variable) {
       console.log("calculateSpace>", "variables", variables, "current", variables[variable])
@@ -413,7 +416,7 @@ SourceElements  = SourceElement _ ((";"/"\n") _ SourceElement*)*
   // FunctionDeclaration
  
 SourceElement
-  = statement: Statement _ (Comment _)* { functionStack.push(statement)}
+  = statement: Statement _ (Comment _)* { Array.isArray(statement) ? functionStack.push(...statement) : functionStack.push(statement)}
   / Comment
  
 Statement
@@ -600,7 +603,7 @@ InputStatement
 
 Comparison
  = ">="
- / "=<"
+ / "<="
  / $("<" !"<")
  / $(">" !">")
  / "=="
@@ -668,27 +671,28 @@ NegatedBooleanExpression
  
 IfStatement
 	= IfToken _ condition:BooleanExpression _ ":"  _"\n"
-      Indent head:(Statement) tail:(("\n") Samedent statement:Statement {return statement})* Dedent _ "\n" _
+      Indent head:(Statement) _ tail:(("\n") Samedent statement:Statement _ {return statement})* Dedent _ "\n" _
       ElseToken _ ":" _"\n"
-      Indent altHead:(Statement) altTail:(("\n") Samedent altStatement:Statement {return altStatement})* Dedent
+      Indent altHead:(Statement) _ altTail:(("\n") Samedent altStatement:Statement _ {return altStatement})* Dedent
    {   const body = [head, ...tail]
        const alternate = [altHead, ...altTail]
        return {token: "ifStatement", properties: {condition, body, alternate}} }
    
    / IfToken _ condition:BooleanExpression _ ":"  _"\n"
-     Indent head:(Statement) tail:(("\n") Samedent statement:Statement {return statement})* Dedent
+     Indent head:(Statement) _ tail:(("\n") Samedent statement:Statement _ {return statement})* Dedent
    {   const body = [head, ...tail]
        return {token: "ifStatement", properties: {condition, body, alternate: null}} }
 
 Loop
  = "while" _ condition:BooleanExpression _ ":" _"\n"
-   Indent head:(Statement) tail:("\n" Samedent statement:Statement {return statement})* Dedent
+   Indent head:(Statement) _ tail:("\n" Samedent statement:Statement _ {return statement})* Dedent
    {   const body = setInitialDeclarationFalse([head, ...tail])
-       return {token: "loop", properties: {type:"while", condition, body}} }
+       return {token: "loop", properties: {condition, body}} }
    
  / "for" _ variable:Variable _ "in" _ "range" _ "(" _ start:ArtihmeticExpression _ ","? _ end:ArtihmeticExpression? _ ","? _ increment:ArtihmeticExpression? _")" _ ":" _ "\n"
- Indent head:(Statement) tail:("\n" Samedent statement:Statement {return statement})* Dedent
+ Indent head:(Statement) _ tail:("\n" Samedent statement:Statement _ {return statement})* Dedent
  {   const body = setInitialDeclarationFalse([head, ...tail])
+     variable = {...variable, type: "variable-int"}
  	 if (!end) {
 		end = start
         start = {
@@ -696,8 +700,33 @@ Loop
                 value: 0
             	}
      }
+     const condition = {
+               type: "binaryBoolean",
+               left: variable,
+               comparison: "<",
+               right: end
+            }
      assignValueToVariable(variable.value, "int", 0)
- 	 return {token: "loop", properties:{type:"for", variable, start,end, increment: increment ? increment : {type:"int", value:1}, body} } }
+     body.push({token: "variableAssignment", 
+            properties: {
+                variable: variable.value,
+                space: 4,
+                value: {
+                token: "artihmeticExpression",
+                properties: {
+                    operator: "+",
+                    left: variable,
+                    right: increment ? increment : {type: "int", value: 1}
+                },
+                type: "artihmeticExpression"
+                }
+            }
+        })
+ 	 return [
+          {token: "variableAssignment", properties:{variable:variable.value, space: 4, value:{...start,type: start.type === "int" ? "int" : start.type + "-int", initialDeclaration: false}}} ,
+          {token: "loop", properties:{condition, body: flatten(body)} }
+    ]
+}
 
 LoopBreak 
  = "break" {return {token: "loopBreak", properties: {value: "break"}} }
