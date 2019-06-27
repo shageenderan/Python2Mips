@@ -37,7 +37,7 @@ export interface VariableAssignmentProperties {
 }
 
 export interface LoopProperties {
-    condition: UnaryIfCondition | BinaryIfCondition | ChainedBooleanIfCondition;
+    condition: UnaryCondition | BinaryCondition | ChainedBooleanCondition;
     body: Array<Token | DataObject>;
 }
 
@@ -45,18 +45,18 @@ export interface LoopBreakProperties {
     value: "pass" | "break" | "continue"
 }
 
-export interface UnaryIfCondition extends IfCondition {
+export interface UnaryCondition extends IfCondition {
     comparison: DataObject;
     negated: boolean;
 }
 
-export interface BinaryIfCondition extends IfCondition {
+export interface BinaryCondition extends IfCondition {
     left: Token | DataObject;
     comparison: "<" | "<=" | ">" | ">=" | "==" | "!=";
     right: Token | DataObject;
 }
 
-export interface ChainedBooleanIfCondition extends IfCondition {
+export interface ChainedBooleanCondition extends IfCondition {
     left: Token | DataObject;
     operator?: "and" | "or";
     right: Token | DataObject;
@@ -67,7 +67,7 @@ export interface IfCondition {
 }
 
 export interface IfTokenProperties {
-    condition: UnaryIfCondition | BinaryIfCondition | ChainedBooleanIfCondition;
+    condition: UnaryCondition | BinaryCondition | ChainedBooleanCondition;
     body: Array<Token | DataObject>
     alternate: Array<Token | DataObject>
 }
