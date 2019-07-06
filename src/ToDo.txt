@@ -47,6 +47,9 @@ To Do
  [FIXED] [BUG] Self concatenation, previous space values not being properly added
  [DONE] write string comparision
  [DONE] update strCmp function to ignore trailing newlines
+ [DONE] while loops
+ [DONE] for loops
+  [FIXED] continue statement bug, supposed to jump to most outer while loop 
  
 Important 
  - Change allocating memory for ints only if the value is updated to a different Type. i.e., x=10; x=2+x; should initialize x to x: .word 10. 
@@ -59,12 +62,22 @@ Important
       x -= 1
    the x above is parsed under the body of the second while instead of the first.
    2 fixes
-   1) look into indent, dedent, samedent [better but much harder]
+   1) look into indent, dedent, samedent [better bRut much harder]
    2) write code to translate input file of valid python where indents are replaced to something easier to parse, such as '{' [easier but try to avoid at all cost]
- [DONE] while loops
- [DONE] for loops
-  [FIXED] continue statement bug, supposed to jump to most outer while loop 
  - arrays
+    [DONE] Array declarations
+    - Array operations
+      -element assignment
+      -print(array)
+        -print(elem)
+      -input(array)
+        -input(elem)
+      -len(array)
+  -translate array tokens
+    -add printing/inputting of arrays
+    -add some basic array functions(len, append, ...)
+  -dynamic allocation for arrays(?)
+  -fix data translation for string arrays
  - functions
  - translation for comments
  - parse prompts for numbers to get insight on how much space to allocate to a input variable. i.e. x = input("Enter name(max 60 chars)")
@@ -108,7 +121,10 @@ Not Supporting:
     c = ("hello" + "world")*2
     [NOT VALID]
     reason: similar to above, need to store bracket expressions somewhere before continuing
-
+3) String concatenation with user input.
+i.e. x = input()
+     x = x + "world"
+     [NOT VALID]
 3) floating point numbers
   reason: out of scope
 4) classes
