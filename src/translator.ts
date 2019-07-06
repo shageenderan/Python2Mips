@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -46,11 +46,33 @@ export default class Translate {
             case "loopBreak":
                 mipsCode += this.translateLoopBreak(pyCode as LoopBreakToken);
                 break;
+            case "array":
+                mipsCode += "#translate ARRAY"
+                break;
             default:
                 //mipsCode += `#some error occured got token: ${pyCode.token}`;;
                 break;
         }
         return { mipsCode, functions: this.functions };
+    }
+
+    /** mips array allocation
+     * @param register the register to store the array reference
+    */
+    public allocateArray(token: ArrayToken, register: string) {
+        let mipsArray = "";
+        if (token.properties.allocation === "dynamic") {
+            mipsArray += `lw $t0, ${(token.properties.length as DataObject).value}
+            addi $t1, $0, 4
+            mult $t1, $t0
+            mflo $t2
+            add $a0, $t2, $t1 # $a0 = 4*size + 4
+            addi $v0, $0, 9 # $v0 = 9
+            syscall # allocate memory
+            sw $v0, ${register} # the_list now points to the returned address
+            sw $t0, ($v0) # store length of list`
+        }
+        return mipsArray;
     }
 
     /** Translates print tokens to mips code */
@@ -60,7 +82,7 @@ export default class Translate {
             printMips += this._translatePrintPrompt(prompt);
         })
         //print newline after a print statement
-        printMips += `#printing newline\naddi $a0, $0, 0xA #ascii code for LF(newline), if you have any trouble try 0xD for CR.\naddi $v0, $0, 11 #syscall 11 prints the lower 8 bits of $a0 as an ascii character.\nsyscall\n`
+        printMips += `#printing newline\naddi $a0, $0, 10 #ascii code for LF(newline), if you have any trouble try 0xD for CR.\naddi $v0, $0, 11 #syscall 11 prints the lower 8 bits of $a0 as an ascii character.\nsyscall\n`
         return printMips;
     }
 
@@ -108,7 +130,9 @@ export default class Translate {
         let inputMips = "";
         token.properties.prompt.forEach(prompt => {
             console.log("INPUT PROMPT", prompt)
-            inputMips += this._translatePrintPrompt(prompt);
+            if (prompt.type) {
+                inputMips += this._translatePrintPrompt(prompt); 
+            }
         })
         inputMips += this._translateInputPrompt(token.type, addr);
         return inputMips;
@@ -141,7 +165,7 @@ export default class Translate {
         if ((token.properties.value as VariableAssignmentDataObject).value || (token.properties.value as VariableAssignmentDataObject).value === 0 ||(token.properties.value as VariableAssignmentDataObject).type === "boolean") {
             const dataObjToken = token.properties.value as VariableAssignmentDataObject;
             console.log(dataObjToken, !dataObjToken.initialDeclaration)
-            if (!dataObjToken.initialDeclaration) {
+            if (!dataObjToken.initialDeclaration || dataObjToken.type.includes("variable")) {
                 switch (dataObjToken.type) {
                     case "string":
                         //this variable is being reused later, hence need to load each character one by one into the buffer
@@ -190,6 +214,11 @@ export default class Translate {
             variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable);
         }
 
+        else if((token.properties.value as ArrayToken).token === "array") {
+            const arrayToken = token.properties.value as ArrayToken
+            variableAssignmentMips += this.allocateArray(arrayToken, token.properties.variable)
+        }
+
         else if ((token.properties.value as InputToken).token === "input") {
             // Token is an input()
             console.log("INPUT", token)
@@ -217,6 +246,11 @@ export default class Translate {
                     break;
                 //update to variable-string and variable-int
                 case "variable":
+                    mipsCode += (token.properties as StringConcatProperties).addedStrings.indexOf(addedString) === 0 && addedString.value === addr
+                        ? `` // skip adding the same value
+                        : this._concatVariableMips(addedString.value as string)
+                    break;
+                case "variable-string":
                     mipsCode += (token.properties as StringConcatProperties).addedStrings.indexOf(addedString) === 0 && addedString.value === addr
                         ? `` // skip adding the same value
                         : this._concatVariableMips(addedString.value as string)
