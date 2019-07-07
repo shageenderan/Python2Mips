@@ -160,9 +160,9 @@
               return;
           }
           else if (value && value.token === "input") {
-              console.log("assignValueToVariable>", "type is a input")
-              dataStack[variableIndex] = `${variable}: \t.space\t${60} #{enter a more exact space for variable: '${variable}'}`
-              variables = { ...variables, [variable]: { type: "string", value, space: 60 } } //assumed input size
+              console.log("assignValueToVariable>", "type is a input: ", value)
+              dataStack[variableIndex] = `${variable}: \t.space\t${value.type == "int" ? 4 : 60} #{enter a more exact space for variable: '${variable}'}`
+              variables = value.type === "int" ? { ...variables, [variable]: { type: "int", value, space: 4 } } : { ...variables, [variable]: { type: "string", value, space: 60 } } //assumed input size
               return;
           }
           else if (type === "boolean") {
@@ -480,7 +480,7 @@ BinaryExpression
 
 VariableAssignment
   = variable:(Variable) assignment:Assignment {
-  return assignValueToVariable(variable.value, assignment.type, assignment.value) === -1 ? 
+  return assignValueToVariable(variable.value, assignment.type, assignment.value ? assignment.value : assignment) === -1 ? 
   {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value:{...assignment}} }
 : {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value:{...assignment, initialDeclaration: true}} } }
   / variable:(Variable) _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
@@ -557,8 +557,8 @@ Assignment
 }
   / _ "=" _ value:Boolean {return {...value}}
   / _ "=" _ value:(StringLiteral/IntegerLiteral) {return {...value}}
-  / _ "=" _ value:Input {return {value, type:"string"}}
-  / _ "=" _ value:Array {return {value, type:"array"}}
+  / _ "=" _ value:Input {return {...value}}
+  / _ "=" _ value:Array {return {...value, type:"array"}}
 
 
 //FunctionDeclaration
@@ -629,7 +629,7 @@ Print
 Input
   = "int" _ "(" _ prompt:InputStatement _ ")" _ { return {...prompt, type: "int"}} //may want to change to variable-int
   / "str" _ "(" _ prompt:InputStatement _ ")" _ { return {...prompt, type: "string"}}
-  / prompt:InputStatement { return {...prompt, type: null}}
+  / prompt:InputStatement { return {...prompt, type: "string"}}
  
 InputStatement
   = InputToken _ "(" _ prompt:(IOArgs) _  tail:("+" _ moreArgs:IOArgs _ {return moreArgs })* _ ")"
@@ -784,7 +784,7 @@ Array
   }
  
 ArrayOperation
- = properties:ElementAssignment {return {token:"arrayOperation", properties}}
+ = properties:ElementAssignment {return {token:"arrayOperation", type:"elementAssignment", properties}}
 
 ElementAssignment
  = arrayRef:Variable _ "[" _ index:ArtihmeticExpression _ "]" value:Assignment {
@@ -792,7 +792,7 @@ ElementAssignment
     	error("Only arrays of elements with the same data types are supported")
     }
     //can add check for array length and index here
-    return {arrayRef, index, value}
+    return {arrayRef, index, value:{...value}}
 }
  / arrayRef:Variable _ "[" _ index:ArtihmeticExpression _ "]" _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
     //console.log("myVal", value)
