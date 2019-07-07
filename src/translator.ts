@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -49,11 +49,123 @@ export default class Translate {
             case "array":
                 mipsCode += "#translate ARRAY"
                 break;
+            case "arrayOperation":
+                mipsCode += this.translateArrayOperation(pyCode as ArrayOperation);
+                break;
             default:
                 //mipsCode += `#some error occured got token: ${pyCode.token}`;;
                 break;
         }
         return { mipsCode, functions: this.functions };
+    }
+
+    public translateArrayOperation(token: ArrayOperation) {
+        let arrayOperationMips = "";
+        switch (token.type) {
+            case "elementAssignment":
+                arrayOperationMips += this._translateElementAssignment(token.properties as ElementAssignmentProperties)
+                break;
+            default:
+                break;
+        }
+        return arrayOperationMips;
+    }
+
+    private _translateElementAssignment(assignment: ElementAssignmentProperties) {
+        let elementAssignmentMips = "";
+        //get element index of the assignment
+        elementAssignmentMips += this._getElementIndex(assignment.index);
+        //get address of array at index
+        elementAssignmentMips += `lw $t2, ${assignment.arrayRef.value}\naddi $t3, $0, 4\nmult $t3, $t0\nmflo $t4\nadd $t4, $t4, $t3 # t4 = i * 4 + 4\nadd $t4, $t4, $t2 # $t4 points to next location in the list\n`
+        //update value at address
+        elementAssignmentMips += this._translateAssignment(assignment.value, "($t4)");
+        return elementAssignmentMips;
+    }
+
+    /** Translates assignments. Stores in register */
+    private _translateAssignment(assignmentType: Assignment, register="$t0") {
+        let assignmentMips = "";
+        if ((assignmentType as DataObject).value !== undefined) {
+            const dataObj = assignmentType as DataObject;
+            switch (dataObj.type) {
+                case "string":
+                        //this variable is being reused later, hence need to load each character one by one into the buffer
+                        // variableAssignmentMips += `#WARNING DUE TO REASSINGING THIS STRING TYPE VARIABLE SOMEWHERE IN YOUR CODE, MIPS HAS TO LOAD EACH CHARACTER OF THE STRING INTO THE LABEL ADDRESS.
+                        // THIS RESULTS IN EXTREMELY LONG MIPS CODE.`
+                        assignmentMips += `la $s0, ${register}\n` + this._storeStringInMips(dataObj.value as string, register)
+                        break;
+                    case "int":
+                        assignmentMips += `li $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        break;
+                    case "boolean":
+                        assignmentMips += `li $t0, ${dataObj.value ? "1" : "0"}\n${register === "$t0" ? "" : register + '\n'}`
+                        break;
+                    case "variable-int":
+                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        break;
+                    case "variable-boolean":
+                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        break;
+                    case "variable-artihmeticExpression":
+                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        break;
+                    case "variable-string":
+                        assignmentMips += `la $s0, ${register}\nadd $a0, $s0, $0\nla $a1, ${dataObj.value}\njal strConcat\n`
+                        break;
+                    default:
+                        break;
+            }
+        }
+
+        // else if ((assignmentType as StringConcatenationToken).token === "stringConcatenation") {
+        //     // Token is a string concatenation i.e. s = "hello" + "world"
+        //     const stringConcatenationToken = assignmentType as StringConcatenationToken;
+        //     const variable = register
+        //     const addedStrings = (stringConcatenationToken.properties as StringConcatProperties).addedStrings
+        //     //check if adding variable to itself i.e. x = x + "some stuff"
+        //     assignmentMips += addedStrings[0].type === "variable" && (addedStrings[0].value === variable)
+        //         ? `la $s0, ${variable}\naddi $s0, $s0, ${token.properties.space - 1}\n`
+        //         : `la $s0, ${variable}\n`;
+
+        //     assignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable);
+        // }
+
+        else if((assignmentType as ArrayToken).token === "array") {
+            const arrayToken = assignmentType as ArrayToken
+            assignmentMips += this.allocateArray(arrayToken, register)
+        }
+
+        else if ((assignmentType as InputToken).token === "input") {
+            // Token is an input()
+            console.log("INPUT", assignmentType)
+            console.log("VARIABLE", register)
+            const inputToken = assignmentType as InputToken;
+            assignmentMips += this.translateInput(inputToken, register);
+        }
+
+        else if ((assignmentType as ArtihmeticExpressionToken).token === "artihmeticExpression") {
+            // Token is an arithmetic expression
+            //console.log("TRAVERSING ARITHMETIC", this._postOrderArithmetic(assignmentType as ArtihmeticExpressionToken));
+            const arithemeticExpression = assignmentType as ArtihmeticExpressionToken
+            assignmentMips += this.translateArithmetic(arithemeticExpression);
+            if(register !== "$t0") assignmentMips += `sw $t0, ${register}\n`;
+        }
+
+        return assignmentMips;
+    }
+
+    /** Translates the value of a given index and stores it in the given register */
+    private _getElementIndex(index: DataObject | ArtihmeticExpressionToken, register=`$t0`) {
+        let elementIndex = ''
+        if (index.type === "int") {
+            elementIndex += `li ${register}, ${(index as DataObject).value}\n`
+        }
+        else {
+            //Arithmetic index
+            elementIndex += this.translateArithmetic(index as ArtihmeticExpressionToken);
+            elementIndex += register === "$t0" ? "" : `add ${register}, $t0, $0\n`
+        }
+        return elementIndex;
     }
 
     /** mips array allocation
@@ -62,15 +174,7 @@ export default class Translate {
     public allocateArray(token: ArrayToken, register: string) {
         let mipsArray = "";
         if (token.properties.allocation === "dynamic") {
-            mipsArray += `lw $t0, ${(token.properties.length as DataObject).value}
-            addi $t1, $0, 4
-            mult $t1, $t0
-            mflo $t2
-            add $a0, $t2, $t1 # $a0 = 4*size + 4
-            addi $v0, $0, 9 # $v0 = 9
-            syscall # allocate memory
-            sw $v0, ${register} # the_list now points to the returned address
-            sw $t0, ($v0) # store length of list`
+            mipsArray += `lw $t0, ${(token.properties.length as DataObject).value}\naddi $t1, $0, 4\nmult $t1, $t0\nmflo $t2\nadd $a0, $t2, $t1 # $a0 = 4*size + 4\naddi $v0, $0, 9 # $v0 = 9\nsyscall # allocate memory\nsw $v0, ${register} # the_list now points to the returned address\nsw $t0, ($v0) # store length of list\n`
         }
         return mipsArray;
     }

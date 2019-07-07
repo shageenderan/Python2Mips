@@ -7,10 +7,12 @@ export class DataObject {
     spaced?: boolean;
 }
 
+export type Assignment = DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken | ArrayToken
+
 export class Token {
-    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array";
+    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array" | "arrayOperation";
     type?: string;
-    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties
+    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties | ElementAssignmentProperties
 }
 
 export interface StringConcatProperties {
@@ -30,7 +32,7 @@ export interface IOTokenProperties {
 
 export interface VariableAssignmentProperties {
     variable: string;
-    value: DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken | ArrayToken;
+    value: Assignment;
 
     /** indicates the space taken by this variable(including the null terminator '\0') BEFORE this variable assignment */
     space?: number;
@@ -129,4 +131,16 @@ export class LoopBreakToken {
 export class ArrayToken {
     token: string;
     properties: ArrayTokenProperties;
+}
+
+export interface ElementAssignmentProperties {
+    arrayRef: DataObject;
+    index: DataObject | ArtihmeticExpressionToken;
+    value: Assignment
+}
+
+export class ArrayOperation {
+    token: string;
+    type: "elementAssignment";
+    properties: ElementAssignmentProperties;
 }

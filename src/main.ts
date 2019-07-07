@@ -127,7 +127,18 @@ while i <= 12:
     if i == 9:
         continue
     print("second i", i)`
-
+const mipsTest1 = `n = int(input("Enter integer: "))
+while (n > 1):
+    print(n)
+    if n % 2 == 0:
+        n = n//2
+    else:
+        n = 3*n + 1`
+const arrOpTest = `size = int(input("Enter size: "))
+the_list = [0] * size
+for i in range(size):
+    the_list[i] = int(input("Enter value: "))
+`
 
 export interface parserOutput {
     data: Array<string>;
@@ -147,7 +158,7 @@ const compareDataSegment = (a: string, b: string) => {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(loopBreaks) as parserOutput;
+    const sampleOutput: parserOutput = parse(arrOpTest) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []
