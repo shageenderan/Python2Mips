@@ -215,6 +215,10 @@ export default class Translate {
             case "variable-string":
                 mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n` //printing single string variable
                 break;
+            case "variable-array":
+                mipsCode += `lw $a0, ${(printToken as DataObject).value}\njal printArray\n`
+                this.functions.push("printArray")
+                break;
             case "artihmeticExpression":
                 //compute arthimetic expression
                 mipsCode += this.translateArithmetic(printToken as ArtihmeticExpressionToken)

@@ -123,5 +123,51 @@ notEmpty:
 li      $v0, 0
 jr      $ra
 `,
+    printArray:
+`
+# printArray -- prints all the contents of an Array
+#
+# RETURNS:
+#   Nothing
+#
+#
+# arguments:
+#   a0 -- address of the array to print
+#
+# clobbers:
+#   --length of list is stored at position 0 of the array
+printArray:
+addi        $t0, $0, 0 # t0 = 0
+addi        $t1, $a0, 0 # $t1 = address of the_list
+lw          $t2, ($t1)  # $t2 = size of list
+li          $a0, '['
+addi        $v0, $0, 11
+syscall
+bge         $t0, $t2, endPrint
+
+printLoop:
+addi        $t3, $0, 4
+mult        $t3, $t0
+mflo        $t4
+add         $t4, $t4, $t3 # $t4 = $t0 * 4 + 4
+add         $t4, $t4, $t1
+lw          $a0, ($t4) # load current item value into $a0
+addi        $v0, $0, 1
+syscall     # print current item
+addi        $t0, $t0, 1 # $t0 = $t0 + 1
+bge         $t0, $t2, endPrint
+addi        $a0, $0, 44 # print a comma - ascii code 44
+addi        $v0, $0, 11
+syscall
+addi        $a0, $0, 32 # print a space - ascii code 32
+addi        $v0, $0, 11
+syscall
+j           printLoop
+
+endPrint:
+li          $a0, ']'
+addi        $v0, $0, 11
+syscall
+jr          $ra`,
 
 }
