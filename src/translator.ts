@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment, ArrayElement } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -191,7 +191,7 @@ export default class Translate {
     }
 
     /** Translates all prompts(in a single print statement) into mips */
-    private _translatePrintPrompt(printToken: DataObject | ArtihmeticExpressionToken) {
+    private _translatePrintPrompt(printToken: DataObject | ArtihmeticExpressionToken | ArrayElement) {
         let mipsCode = "";
         if ((printToken as DataObject).spaced) {
             mipsCode += `la $a0, 32\naddi $v0, $0, 11\nsyscall\n` //printing space
@@ -223,6 +223,13 @@ export default class Translate {
                 //compute arthimetic expression
                 mipsCode += this.translateArithmetic(printToken as ArtihmeticExpressionToken)
                 mipsCode += `add $a0 $0 $t0\naddi $v0, $0, 1\nsyscall\n` //printing integer
+                break;
+            case "arrayElement":
+                const arrayElem = printToken as ArrayElement
+                mipsCode += `li $t0, 4\nlw $t1, ${arrayElem.value.arrayRef.value}\nadd $t1, $t1, $t0\n`             //get starting address of list
+                mipsCode += this._getElementIndex(arrayElem.value.index, "$t2");                                    //translate index to print
+                mipsCode += `mult $t2, $t0\nmflo $t2\nadd $t2, $t2, $t1\n`                                          //address of element to print
+                mipsCode += `lw $a0, ($t2)\nli $v0, 1\nsyscall\n`                                                   //print elem
                 break;
             default:
                 mipsCode += `#some error occured got type: ${printToken.type}`;

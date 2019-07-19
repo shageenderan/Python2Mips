@@ -138,6 +138,8 @@ const arrOpTest = `size = int(input("Enter size: "))
 the_list = [0] * size
 for i in range(size):
     the_list[i] = int(input("Enter value: "))
+print(the_list)
+print(the_list[0])
 `
 
 export interface parserOutput {

@@ -144,3 +144,11 @@ export class ArrayOperation {
     type: "elementAssignment";
     properties: ElementAssignmentProperties;
 }
+
+export class ArrayElement {
+    type: string;
+    value: {
+        arrayRef: DataObject;
+        index: DataObject | ArtihmeticExpressionToken;
+    }
+}

@@ -67,12 +67,13 @@ Important
  - arrays
     [DONE] Array declarations
     - Array operations
-      -element assignment
-      -print(array)
-        -print(elem)
-      -input(array)
-        -input(elem)
-      -len(array)
+      -[DONE] element assignment
+      - [DONE] print(array)
+        - [DONE]print(elem)
+      - [DONE] input(array)
+        - [DONE] input(elem)
+      -len(array); Do this by adding len as par of Functions in the parser.
+      -translate loops in range(len(array))
   -translate array tokens
     -add printing/inputting of arrays
     -add some basic array functions(len, append, ...)

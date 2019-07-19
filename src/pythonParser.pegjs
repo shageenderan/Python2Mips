@@ -587,6 +587,7 @@ IOFunction
 
 IOArgs
   = CastedArgs
+  / val:Variable _ "[" index:(Variable/IntegerLiteral) _ "]" {return {type:"arrayElement", value: {arrayRef:val, index}} }
   / val:ArtihmeticExpression {
       if(val.token === "stringConcatenation"){
           return val.properties.addedStrings
