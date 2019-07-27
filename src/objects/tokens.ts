@@ -1,18 +1,28 @@
 export class DataObject {
     /** The type of data, i.e. string, int, variable etc.. */
     type: string | null;
-    /** value of a string */
+    /** value of the data */
     value?: string | number;
     /** used in rare cases to indicate a space is needed */
     spaced?: boolean;
+    /** used in variable declarations to indicate first time variable declaration */
+    initialDeclaration?: boolean;
+    /** used in array references */
+    allocation?: "dynamic" | "static";
 }
 
-export type Assignment = DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken | ArrayToken
+export type Assignment = DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken | ArrayToken | ArrayElement
 
 export class Token {
-    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array" | "arrayOperation";
+    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array" | "arrayOperation" | "function";
     type?: string;
-    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties | ElementAssignmentProperties
+    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties | ElementAssignmentProperties | FunctionProperties;
+}
+
+export interface FunctionProperties {
+    name: string;
+    parameters: Array<any>;
+    userDefined: boolean;
 }
 
 export interface StringConcatProperties {
@@ -33,7 +43,6 @@ export interface IOTokenProperties {
 export interface VariableAssignmentProperties {
     variable: string;
     value: Assignment;
-
     /** indicates the space taken by this variable(including the null terminator '\0') BEFORE this variable assignment */
     space?: number;
 }
@@ -150,5 +159,17 @@ export class ArrayElement {
     value: {
         arrayRef: DataObject;
         index: DataObject | ArtihmeticExpressionToken;
+        type: "string" | "int"
     }
+}
+
+export class FunctionToken {
+    token: "function";
+    type: "function";
+    properties: FunctionProperties;
+}
+
+export class ArrayLength extends FunctionToken {
+    name: "len";
+    parameters: Array<DataObject>;
 }
