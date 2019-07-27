@@ -169,5 +169,23 @@ li          $a0, ']'
 addi        $v0, $0, 11
 syscall
 jr          $ra`,
+    len:
+`
+# len -- calculates length of an Array
+#
+# RETURNS:
+#   v0 - length of the array
+#
+#
+# arguments:
+#   a0 -- address of the array
+#
+# clobbers:
+#   --length of list is stored at position 0 of the array
+len:
+addi        $t0, $a0, 0 # $t0 = address of the_list
+lw          $v0, ($t0)  # $v0 = size of list
+jr          $ra
+`,
 
 }
