@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-07-09 00:43:50
+//Last modified : 2019-07-27 16:21:54
 
 {
   const dataStack = [];
@@ -134,6 +134,13 @@
               dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2)}`;
               return;
           }
+          else if (type === "arrayElement") {
+              console.log("arrayElement assignment")
+              //calculateMinSpaceNeeded(value, variable)
+              console.log("arrayElement assignment >", variable, type, value)
+              variables = { ...variables, [variable]: { type: value.type, value, space: 4 } }
+              return;
+          }
           else if (type === "artihmeticExpression") {
               console.log("assignValueToVariable>", "type is a artihmeticExpression")
               variables = { ...variables, [variable]: { type, value, space: 4 } }
@@ -172,11 +179,11 @@
               return;
           }
           else {
-              console.log("assignValueToVariable>", "type is of string or int")
+              console.log("assignValueToVariable>", "type is of string or int", value)
               if (variableIndex !== -1) {
                   newVal =
                       type === "string" ? `${variable}: \t.asciiz\t"${value}"` :
-                          type === "int" ? `${variable}: \t.word\t${value ? value : 0} ` :
+                          type === "int" ? `${variable}: \t.word\t${typeof value === "number" ? value : 0} ` :
                               "noTypeYet";
                   console.log("assignValueToVariable> type is a:", newVal)
               }
@@ -195,7 +202,7 @@
           console.log("assignValueToVariable> variable has been assigned before")
           console.log("assignValueToVariable>", dataStack)
           console.log("assignValueToVariable>", functionStack)
-          const initialDeclarationIndex = functionStack.findIndex(elem => elem.properties.variable === variable)
+          const initialDeclarationIndex = functionStack.filter(elem => elem.token !== "comment").findIndex(elem => elem.properties.variable === variable)
           console.log("assignValueToVariable> initial declaration index: ", initialDeclarationIndex)
           if (initialDeclarationIndex !== -1) {
           		//reset initial declaration to false
@@ -453,16 +460,16 @@ Start
   = _ program:Program _ {console.log("[FINAL]", variables); return {data:dataStack, tokens:functionStack}}
  
 Program
-  = body: SourceElements {return body}
+  = body:SourceElements {return body}
 
-SourceElements  = SourceElement _ ((";"/"\n") _ SourceElement*)*
+SourceElements
+  = SourceElement _ ((Comment / ";" / "\n") _ SourceElement*)*
   / "\n"*
   / EOF
   // FunctionDeclaration
  
 SourceElement
-  = statement: Statement _ (Comment _)* { Array.isArray(statement) ? functionStack.push(...statement) : functionStack.push(statement)}
-  / Comment
+  = statement: Statement _ (Comment _)*  { Array.isArray(statement) ? functionStack.push(...statement) : functionStack.push(statement)}
  
 Statement
   = VariableAssignment
@@ -474,6 +481,7 @@ Statement
   / Literal
   / LoopBreak
   / Array
+  / Comment
  
 BinaryExpression
   = expr:ArtihmeticExpression {return expr}
@@ -484,10 +492,11 @@ VariableAssignment
   {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value:{...assignment}} }
 : {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value:{...assignment, initialDeclaration: true}} } }
   / variable:(Variable) _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
-    //console.log("myVal", value)
+    console.log("myVal", value)
+    const operator = sep.split("=")[0]
     if(value.type === "artihmeticExpression"){
-        const operator = sep.split("=")[0]
         const arValue = value
+        console.log("arithmrtic >", operator, arValue)
         value = {
             token: "artihmeticExpression",
             properties: {
@@ -513,11 +522,12 @@ VariableAssignment
             }
         }
         else if(value.type.includes("int")){
+            console.log("int >", operator)
             const intVal = value
             value = {
                 token: "artihmeticExpression",
                 properties: {
-                    operator: "+",
+                    operator,
                     left: {
                         ...variable
                     },
@@ -539,10 +549,12 @@ VariableAssignment
         }
         console.log("[ru]", value, value.type)
     }
+    return {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value} }
 }
 
 Assignment
  =  _ "=" _ "int" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" {return {...value, type: "int"}}
+  / _ "=" _ "str" _ "(" _ value:(Variable/ArtihmeticExpression/Input/StringLiteral/IntegerLiteral/Variable) _ ")" {return {...value, type: "str"}}
   / _ "=" _ 'None' {}
   / _ "=" _ value:ArtihmeticExpression  {
     //console.log("myVal", value)
@@ -579,7 +591,8 @@ StringConcatExpr
   = ""
 
 Function
-  = val:IOFunction {return val}
+  = IOFunction
+  / properties:ArrayFunction { return {token: "function", type: "function", properties} }
 
 IOFunction
   = Print
@@ -587,10 +600,17 @@ IOFunction
 
 IOArgs
   = CastedArgs
-  / val:Variable _ "[" index:(Variable/IntegerLiteral) _ "]" {return {type:"arrayElement", value: {arrayRef:val, index}} }
+  / Function
   / val:ArtihmeticExpression {
       if(val.token === "stringConcatenation"){
-          return val.properties.addedStrings
+          return val.properties.addedStrings.map(str => {
+            if(str.type === "variable") {
+              return {...str, type:`variable-${variables[str.value].type}`}
+            }
+            else {
+            	return str
+            }
+          })
       }
 
       else if(val.type === "string"){
@@ -625,7 +645,7 @@ IntIOArgs
  
 Print
 	= PrintToken _ "(" _ prompt:(IOArgs) _ tail:(sep:(","/"+") _ moreArgs:IOArgs _ {return sep === "+" ? moreArgs : {...moreArgs, spaced:true} })* _ ")"
-                           {return Array.isArray(prompt) ? {token: "print", properties:{prompt: [...prompt, ...tail]}} : {token: "print", properties:{prompt: [prompt, ...tail]}} }
+      {return Array.isArray(prompt) ? {token: "print", properties:{prompt: [...prompt, ...tail]}} : {token: "print", properties:{prompt: [prompt, ...tail]}} }
  
 Input
   = "int" _ "(" _ prompt:InputStatement _ ")" _ { return {...prompt, type: "int"}} //may want to change to variable-int
@@ -721,10 +741,12 @@ IfStatement
 Loop
  = "while" _ condition:BooleanExpression _ ":" _"\n"
    Indent head:(Statement) _ tail:("\n" Samedent statement:Statement _ {return statement})* Dedent
-   {   const body = setInitialDeclarationFalse([head, ...tail])
+   {   console.log("error now here")
+       console.log([head,...tail])
+       const body = setInitialDeclarationFalse([head, ...tail])
        return {token: "loop", properties: {condition, body}} }
    
- / "for" _ variable:Variable _ "in" _ "range" _ "(" _ start:ArtihmeticExpression _ ","? _ end:ArtihmeticExpression? _ ","? _ increment:ArtihmeticExpression? _")" _ ":" _ "\n"
+ / "for" _ variable:Variable _ "in" _ "range" _ "(" _ start:(ArtihmeticExpression/Function) _ ","? _ end:(ArtihmeticExpression/Function)? _ ","? _ increment:(ArtihmeticExpression/Function)? _")" _ ":" _ "\n"
  Indent head:(Statement) _ tail:("\n" Samedent statement:Statement _ {return statement})* Dedent
  {   const body = setInitialDeclarationFalse([head, ...tail])
      variable = {...variable, type: "variable-int"}
@@ -786,14 +808,37 @@ Array
  
 ArrayOperation
  = properties:ElementAssignment {return {token:"arrayOperation", type:"elementAssignment", properties}}
+ / properties:ArrayFunction {return {token:"arrayOperation", type:"arrayLength", properties} }
+
+ArrayFunction
+ = ArrayLength
+
+ArrayLength
+ = "len" _ "(" _ arrayRef:Variable _ ")"
+{	
+    const currentType = variables[arrayRef.value].type === "artihmeticExpression" ? "int" : variables[arrayRef.value].type
+    const type = currentType ? currentType.includes("variable-") ? currentType.slice(currentType.indexOf("variable-")): `variable-${currentType}` : `variable`
+	const allocation = variables[arrayRef.value].value.properties.allocation
+    return {name:"len", parameters:[{...arrayRef, type, allocation}]}
+}
 
 ElementAssignment
  = arrayRef:Variable _ "[" _ index:ArtihmeticExpression _ "]" value:Assignment {
- 	if (!isSameType(value,variables[arrayRef.value].value.properties) ) {
+    console.log(value,variables[arrayRef.value].value.properties)
+    console.log("[Variables]", variables)
+    if (value.type === "arrayElement") {
+        console.log("checking array element")
+        console.log(value.value,variables[arrayRef.value].value.properties)
+        if (!isSameType(value.value, variables[arrayRef.value].value.properties) ) {
+            error("Only arrays of elements with the same data types are supported")
+        }
+    }
+ 	else if (!isSameType(value, variables[arrayRef.value].value.properties) ) {
     	error("Only arrays of elements with the same data types are supported")
     }
     //can add check for array length and index here
-    return {arrayRef, index, value:{...value}}
+    const allocation = variables[arrayRef.value].value.properties.allocation
+    return {arrayRef: {...arrayRef, allocation}, index, value:{...value}}
 }
  / arrayRef:Variable _ "[" _ index:ArtihmeticExpression _ "]" _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
     //console.log("myVal", value)
@@ -853,12 +898,13 @@ ElementAssignment
         }
         console.log("[ru]", value, value.type)
     } 
-    return {arrayRef, index, value}
+    const allocation = variables[arrayRef.value].value.properties.allocation
+    return {arrayRef:{...arrayRef, allocation}, index, value}
 }
 
 
 Comment
-	= value:$("#" _ ((VariableName/[/.,';?><":()0-9]) _)* _) {functionStack.push({token: "comment", value: value.slice(1)})}
+	= value:$("#" _ ((!"\n" .) _)* _) { return {token: "comment", value: value.slice(1)} }
  
 Literal
   = StringLiteral
@@ -963,6 +1009,7 @@ ReservedWord
 / "while"
 / "for"
 / "continue"
+/ "len"
  
 //taken from javascript parser
 Variable
@@ -990,6 +1037,13 @@ VariablePart
   / "\u200C"
   / "\u200D"
  
+ArrayElement
+ = arrayRef:Variable _ "[" _ index:ArtihmeticExpression _"]" _ { 
+ 	let type = variables[arrayRef.value].value.properties.type
+    let allocation = variables[arrayRef.value].value.properties.allocation
+ 	return {type:"arrayElement", value: {arrayRef:{...arrayRef, allocation}, index, type}} 
+}
+
 UnicodeLetter
   = Lu
   / Ll
@@ -1104,10 +1158,25 @@ Dedent 'dedent'
 ArtihmeticExpression
   = value:ArtihmeticStart {if (value.type) {
        stringPresent = false;
-       if( value.type  === "variable") {
+       console.log("here > ", variables, value, variables[value.value] ? variables[value.value].type : "")
+       if(value.type  === "variable") {
           const currentType = variables[value.value].type === "artihmeticExpression" ? "int" : variables[value.value].type
-          let type = currentType ? currentType.includes("variable-") ? currentType.slice(currentType.indexOf("variable-")): `variable-${currentType}` : `variable`
-          return {...value, type}
+          let type;
+          console.log("currentType>", currentType)
+          if(currentType) {
+          	type = currentType.includes("variable-") 
+            	 ? currentType.slice(currentType.indexOf("variable-"))
+                 : `variable-${currentType}` 
+          }           
+          else { type = `variable`}
+          console.log("returning >", value, type)
+          if(type === "variable-array") {
+          	const allocation = variables[value.value].value.properties.allocation
+          	return {...value, type, allocation}
+          }
+          else { 
+          	return {...value, type}
+          }
         }
        else {
          return value
@@ -1134,4 +1203,4 @@ ArtihmeticTerm
 
 ArtihmeticFactor
   = "(" _ expr:ArtihmeticStart _ ")" { return expr; }
-  / IntegerLiteral / Variable /StringLiteral  
+  / ArrayElement / IntegerLiteral / Variable / StringLiteral
