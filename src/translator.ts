@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment, ArrayElement } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment, ArrayElement, FunctionToken } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -76,16 +76,16 @@ export default class Translate {
         //get element index of the assignment
         elementAssignmentMips += this._getElementIndex(assignment.index);
         //get address of array at index
-        elementAssignmentMips += `lw $t2, ${assignment.arrayRef.value}\naddi $t3, $0, 4\nmult $t3, $t0\nmflo $t4\nadd $t4, $t4, $t3 # t4 = i * 4 + 4\nadd $t4, $t4, $t2 # $t4 points to next location in the list\n`
+        elementAssignmentMips += `${assignment.arrayRef.allocation === "static" ? "la" : "lw"} $t2, ${assignment.arrayRef.value}\naddi $t3, $0, 4\nmult $t3, $t0\nmflo $t4\nadd $t4, $t4, $t3 # t4 = i * 4 + 4\nadd $t4, $t4, $t2 # $t4 points to next location in the list\n`
         //update value at address
         elementAssignmentMips += this._translateAssignment(assignment.value, "($t4)");
         return elementAssignmentMips;
     }
 
     /** Translates assignments. Stores in register */
-    private _translateAssignment(assignmentType: Assignment, register="$t0") {
+    private _translateAssignment(assignmentType: Assignment, register="$t0", initialDeclaration=false, space?: number) {
         let assignmentMips = "";
-        if ((assignmentType as DataObject).value !== undefined) {
+        if ((assignmentType as DataObject).value !== undefined && !initialDeclaration) {
             const dataObj = assignmentType as DataObject;
             switch (dataObj.type) {
                 case "string":
@@ -95,22 +95,29 @@ export default class Translate {
                         assignmentMips += `la $s0, ${register}\n` + this._storeStringInMips(dataObj.value as string, register)
                         break;
                     case "int":
-                        assignmentMips += `li $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        assignmentMips += `li $t0, ${dataObj.value}\n${register === "$t0" ? "" : `sw $t0, ${register}\n`}`
                         break;
                     case "boolean":
-                        assignmentMips += `li $t0, ${dataObj.value ? "1" : "0"}\n${register === "$t0" ? "" : register + '\n'}`
+                        assignmentMips += `li $t0, ${dataObj.value ? "1" : "0"}\n${register === "$t0" ? "" : `sw $t0, ${register}\n`}`
                         break;
                     case "variable-int":
-                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : `sw $t0, ${register}\n`}`
                         break;
                     case "variable-boolean":
-                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : `sw $t0, ${register}\n`}`
                         break;
                     case "variable-artihmeticExpression":
-                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : register + '\n'}`
+                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : `sw $t0, ${register}\n`}`
                         break;
                     case "variable-string":
                         assignmentMips += `la $s0, ${register}\nadd $a0, $s0, $0\nla $a1, ${dataObj.value}\njal strConcat\n`
+                        break;
+                    case "arrayElement":
+                        const arrayElem = assignmentType as ArrayElement;
+                        assignmentMips += `li $t0, 4\n${arrayElem.value.arrayRef.allocation === "static" ? "la" : "lw"} $t1, ${arrayElem.value.arrayRef.value}\nadd $t1, $t1, $t0\n`             //get starting address of list
+                        assignmentMips += this._getElementIndex(arrayElem.value.index, "$t2");                                    //get index
+                        assignmentMips += `mult $t2, $t0\nmflo $t2\nadd $t2, $t2, $t1\n`                                          //address of element
+                        assignmentMips += `lw $t0, ($t2)\n${register === "$t0" ? "" : `sw $t0, ${register}\n`}`                                                                       //load elem
                         break;
                     default:
                         break;
@@ -160,6 +167,9 @@ export default class Translate {
         if (index.type === "int") {
             elementIndex += `li ${register}, ${(index as DataObject).value}\n`
         }
+        else if (index.type.includes("variable")) {
+            elementIndex += `lw ${register}, ${(index as DataObject).value}\n`
+        }
         else {
             //Arithmetic index
             elementIndex += this.translateArithmetic(index as ArtihmeticExpressionToken);
@@ -179,6 +189,47 @@ export default class Translate {
         return mipsArray;
     }
 
+    /** Translate function calls to Mips code by loading each parameter into a register $a[i] and then calling the function.
+     *  Automatically diffrentiates between in-built and user-defined functions.
+     * @returns result of function called stored in $v0
+    */
+    public translateFunction(func: FunctionToken) {
+        let mipsFunction = ``
+        //load each parameter into $a[i]
+        const funcProps = func.properties
+        mipsFunction += this.translateFunctionParameters(funcProps.parameters)
+        //call function
+        mipsFunction += `jal ${funcProps.name}\n`
+        if (!funcProps.userDefined) {
+            this.functions.push(funcProps.name)
+        }
+        return mipsFunction
+    }
+    
+    public translateFunctionParameters(parameters: Array<DataObject | ArtihmeticExpressionToken>) {
+        const mipsParameters = parameters.map( (param, index) => {
+            switch (param.type) {
+                case "artihmeticExpression":
+                    return this.translateArithmetic(param as ArtihmeticExpressionToken) + `add $a${index}, $t0\n`
+                case "int":
+                    return `li $a${index}, ${(param as DataObject).value}\n`;
+                case "string":
+                    return `la $a${index}, ${(param as DataObject).value}\n`;
+                case "variable-array":
+                    return `${(param as DataObject).allocation === "static" ? "la" : "lw"} $a${index}, ${(param as DataObject).value}\n`;
+                case "variable-int":
+                    return `lw $a${index}, ${(param as DataObject).value}\n`;
+                case "variable-string":
+                    return `la $a${index}, ${(param as DataObject).value}\n`;
+                default:
+                    break;
+            }
+        })
+
+        return mipsParameters.join("");
+
+    }
+
     /** Translates print tokens to mips code */
     public translatePrint(token: PrintToken): string {
         let printMips = ""
@@ -191,11 +242,12 @@ export default class Translate {
     }
 
     /** Translates all prompts(in a single print statement) into mips */
-    private _translatePrintPrompt(printToken: DataObject | ArtihmeticExpressionToken | ArrayElement) {
+    private _translatePrintPrompt(printToken: DataObject | ArtihmeticExpressionToken | ArrayElement | FunctionToken) {
         let mipsCode = "";
         if ((printToken as DataObject).spaced) {
             mipsCode += `la $a0, 32\naddi $v0, $0, 11\nsyscall\n` //printing space
         }
+        const arrayElem = printToken as ArrayElement
         switch (printToken.type) {
             case "string":
                 mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n`
@@ -216,7 +268,7 @@ export default class Translate {
                 mipsCode += `la $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 4\nsyscall\n` //printing single string variable
                 break;
             case "variable-array":
-                mipsCode += `lw $a0, ${(printToken as DataObject).value}\njal printArray\n`
+                mipsCode += `${(printToken as DataObject).allocation === "static" ? "la" : "lw"} $a0, ${(printToken as DataObject).value}\njal printArray\n`
                 this.functions.push("printArray")
                 break;
             case "artihmeticExpression":
@@ -225,11 +277,17 @@ export default class Translate {
                 mipsCode += `add $a0 $0 $t0\naddi $v0, $0, 1\nsyscall\n` //printing integer
                 break;
             case "arrayElement":
-                const arrayElem = printToken as ArrayElement
                 mipsCode += `li $t0, 4\nlw $t1, ${arrayElem.value.arrayRef.value}\nadd $t1, $t1, $t0\n`             //get starting address of list
                 mipsCode += this._getElementIndex(arrayElem.value.index, "$t2");                                    //translate index to print
                 mipsCode += `mult $t2, $t0\nmflo $t2\nadd $t2, $t2, $t1\n`                                          //address of element to print
                 mipsCode += `lw $a0, ($t2)\nli $v0, 1\nsyscall\n`                                                   //print elem
+                break;
+            case "function":
+                const func = printToken as FunctionToken;
+                //call function
+                mipsCode += this.translateFunction(func);
+                //print result of function, should be stored in $v0
+                mipsCode += `add $a0, $v0, $0\nli $v0, 1\nsyscall\n`
                 break;
             default:
                 mipsCode += `#some error occured got type: ${printToken.type}`;
@@ -277,78 +335,7 @@ export default class Translate {
     /** Translates variable assignment tokens to mips code */
     public translateVariableAssignment(token: VariableAssignmentToken): string {
         let variableAssignmentMips = ""
-        if ((token.properties.value as VariableAssignmentDataObject).value || (token.properties.value as VariableAssignmentDataObject).value === 0 ||(token.properties.value as VariableAssignmentDataObject).type === "boolean") {
-            const dataObjToken = token.properties.value as VariableAssignmentDataObject;
-            console.log(dataObjToken, !dataObjToken.initialDeclaration)
-            if (!dataObjToken.initialDeclaration || dataObjToken.type.includes("variable")) {
-                switch (dataObjToken.type) {
-                    case "string":
-                        //this variable is being reused later, hence need to load each character one by one into the buffer
-                        // variableAssignmentMips += `#WARNING DUE TO REASSINGING THIS STRING TYPE VARIABLE SOMEWHERE IN YOUR CODE, MIPS HAS TO LOAD EACH CHARACTER OF THE STRING INTO THE LABEL ADDRESS.
-                        // THIS RESULTS IN EXTREMELY LONG MIPS CODE.`
-                        variableAssignmentMips += `la $s0, ${token.properties.variable}\n` + this._storeStringInMips(dataObjToken.value as string, token.properties.variable)
-                        break;
-                    case "int":
-                        variableAssignmentMips += `li $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
-                        break;
-                    case "boolean":
-                        variableAssignmentMips += `li $t0, ${dataObjToken.value ? "1" : "0"}\nsw $t0, ${token.properties.variable}\n`
-                        break;
-                    case "variable-int":
-                        variableAssignmentMips += `lw $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
-                        break;
-                    case "variable-boolean":
-                        variableAssignmentMips += `lw $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
-                        break;
-                    case "variable-artihmeticExpression":
-                        variableAssignmentMips += `lw $t0, ${dataObjToken.value}\nsw $t0, ${token.properties.variable}\n`
-                        break;
-                    case "variable-string":
-                        variableAssignmentMips += `la $s0, ${token.properties.variable}\nadd $a0, $s0, $0\nla $a1, ${dataObjToken.value}\njal strConcat\n`
-                        break;
-                    default:
-                        break;
-                }
-                return variableAssignmentMips;
-            }
-            else {
-                return "";
-            }
-        }
-
-        if ((token.properties.value as StringConcatenationToken).token === "stringConcatenation") {
-            // Token is a string concatenation i.e. s = "hello" + "world"
-            const stringConcatenationToken = token.properties.value as StringConcatenationToken;
-            const variable = token.properties.variable
-            const addedStrings = (stringConcatenationToken.properties as StringConcatProperties).addedStrings
-            //check if adding variable to itself i.e. x = x + "some stuff"
-            variableAssignmentMips += addedStrings[0].type === "variable" && (addedStrings[0].value === variable)
-                ? `la $s0, ${variable}\naddi $s0, $s0, ${token.properties.space - 1}\n`
-                : `la $s0, ${variable}\n`;
-
-            variableAssignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable);
-        }
-
-        else if((token.properties.value as ArrayToken).token === "array") {
-            const arrayToken = token.properties.value as ArrayToken
-            variableAssignmentMips += this.allocateArray(arrayToken, token.properties.variable)
-        }
-
-        else if ((token.properties.value as InputToken).token === "input") {
-            // Token is an input()
-            console.log("INPUT", token)
-            console.log("VARIABLE", token.properties.variable)
-            const inputToken = token.properties.value as InputToken;
-            variableAssignmentMips += this.translateInput(inputToken, token.properties.variable);
-        }
-
-        else if ((token.properties.value as ArtihmeticExpressionToken).token === "artihmeticExpression") {
-            // Token is an arithmetic expression
-            console.log("TRAVERSING ARITHMETIC", this._postOrderArithmetic(token.properties.value as ArtihmeticExpressionToken));
-            const arithemeticExpression = token.properties.value as ArtihmeticExpressionToken
-            variableAssignmentMips += this.translateArithmetic(arithemeticExpression);
-            variableAssignmentMips += `sw $t0, ${token.properties.variable}\n`
-        }
+        variableAssignmentMips += this._translateAssignment(token.properties.value, token.properties.variable, (token.properties.value as DataObject).initialDeclaration, token.properties.space)
         return variableAssignmentMips;
     }
 
@@ -461,7 +448,10 @@ export default class Translate {
      * x = 10 and 15 should both be identified as ints
      */
     private _isSameType(val1: DataObject | ArtihmeticExpressionToken, val2: DataObject | ArtihmeticExpressionToken) {
-        if (val1.type.includes("string") && val2.type.includes("string")) {
+        if (val1.type.includes("function") || val2.type.includes("function")) {
+            return true
+        }
+        else if (val1.type.includes("string") && val2.type.includes("string")) {
             return true
         }
         else if ( (val1.type.includes("int") || val1.type.includes("artihmeticExpression") || val1.type.includes("boolean"))  
@@ -544,8 +534,8 @@ export default class Translate {
     private _translateComplexChaninedBoolean(condition: ChainedBooleanCondition, register: string): string {
         let chainedBooleanMips = "";
         // Evaluates the left and right hand side before comparing the bits. 0 == False and !0 is True. Left hand side should be evaluated into $s0
-        // with a value of 0 indicating the expression is false or not 0 indicating a true(i.e. -2 and 2 are considered true but 0 is false)
-        // Similar with right hand side but with $ts1 instead
+        // with a value of 0 indicating the expression is false and not 0 indicating true(i.e. -2 and 2 are considered true but 0 is false)
+        // Similar with right hand side but with register $s1 instead
         //Translate left condition
         switch (condition.left.type) {
             case "unaryBoolean":
@@ -614,6 +604,12 @@ export default class Translate {
                 break;
             case "variable-boolean":
                 evaluatedUnaryMips += `lw ${register}, ${condition.comparison.value}\n`
+                break;
+            case "arrayElement":
+                evaluatedUnaryMips += `#add array element evluation for complex chained\n`
+                break;
+            case "function":
+                evaluatedUnaryMips += `#add function evaluation for complex chained\n`
                 break;
             default:
                 evaluatedUnaryMips += `#Some error occured, got type: ${condition.comparison.type}`
@@ -813,6 +809,12 @@ export default class Translate {
                 case "variable-boolean":
                     ifUnaryBoolean += `bne $t0, $0, `
                     break;
+                case "arrayElement":
+                    ifUnaryBoolean += `#add branch for unary array elements `
+                    break;
+                case "function":
+                    ifUnaryBoolean += `#add branch for unary functions`
+                    break;
                 default:
                     break;
             }
@@ -846,6 +848,12 @@ export default class Translate {
                     break;
                 case "variable-boolean":
                     ifUnaryBoolean += `beq $t0, $0, `
+                    break;
+                case "arrayElement":
+                    ifUnaryBoolean += `#add branch for unary array elements `
+                    break;
+                case "function":
+                    ifUnaryBoolean += `#add branch for unary functions`
                     break;
                 default:
                     break;
@@ -911,7 +919,7 @@ export default class Translate {
                     ifBinaryBoolean += `ble $t1, $t2, `
                     break;
                 case ">=":
-                    ifBinaryBoolean += `bgt $t1, $t2, `
+                    ifBinaryBoolean += `blt $t1, $t2, `
                     break;
                 case "==":
                     ifBinaryBoolean += `bne $t1, $t2, `
@@ -944,7 +952,7 @@ export default class Translate {
     /** Translates comparands(things being compared) into appropriate types 
      * @param register register to store the operand in i.e. '$t0'
     */
-    private _translateIfConditionComparand(comparand: Token | DataObject, register: string) {
+    private _translateIfConditionComparand(comparand: Token | DataObject | ArrayElement, register: string) {
         let comparandMips = ""
         if ((comparand as DataObject).value || (comparand as DataObject).value === 0 || (comparand as DataObject).value === "") {
             //comparand in a literal i.e. 3 or "hello"
@@ -973,6 +981,14 @@ export default class Translate {
                 case "variable":
                     comparandMips += `la ${register}, ${comparandData.value}\n`
                     break;
+                case "arrayElement":
+                    comparandMips += `#add branch for binary array elements\n`
+                    const arrayElem = comparand as ArrayElement;
+                    comparandMips += `li $s0, 4\n${arrayElem.value.arrayRef.allocation === "static" ? "la" : "lw"} $s1, ${arrayElem.value.arrayRef.value}\nadd $s1, $s1, $s0\n`             //get starting address of list
+                    comparandMips += this._getElementIndex(arrayElem.value.index, "$s2");                                    //get index
+                    comparandMips += `mult $s2, $s0\nmflo $s2\nadd $s2, $s2, $s1\n`                                          //address of element
+                    comparandMips += `lw ${register}, ($s2)\n`   
+                    break;
                 default:
                     break;
             }
@@ -995,6 +1011,11 @@ export default class Translate {
                     break;
                 case "stringConcatenation":
                     //also valid, but since theres a lack of temp variables this will be hard to do.... maybe unsupport?
+                    break;
+                case "function":
+                    //this is a valid case. call the function and store the result(should be at $v0) in register
+                    comparandMips += this.translateFunction(comparand as FunctionToken);
+                    comparandMips += `addi ${register}, $v0, 0\n`
                     break;
                 case "artihmeticExpression":
                     //this is a valid case. evaluate the expression and store result(should be at $t0) at register

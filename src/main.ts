@@ -3,7 +3,7 @@ import Translate from './translator';
 import { Token } from './objects/tokens';
 import { mipsFunctions } from './mipsFunction';
 
-const testStringPrint = `x = 2;\nprint(x+2)\nx=input("type something:"); print(x)`
+const testStringPrint = `print("hello"); x = 2;\nprint(x+2)\nx=input("type something:"); print(x); `
 const testPrint = `print(2)\nprint("hello")\nprint("hello", "world")\nprint(2+2)\nprint(9*30/5 + 32)`
 const testArPrint = `print(2 + (9*30/5 + 32))`
 const testInput = `x = int(input("enter a number: "))\nprint("adding 10 to your number:", x)\nx=10 + x\nprint(x)`
@@ -140,7 +140,42 @@ for i in range(size):
     the_list[i] = int(input("Enter value: "))
 print(the_list)
 print(the_list[0])
+print(len(the_list))
 `
+const insertionSort = `# Driver code to test above
+arr = [12, 11, 13, 5, 6] #array
+
+# Traverse through 1 to len(arr) 
+for i in range(1, len(arr)): 
+    key = arr[i]
+    # Move elements of arr[0..i-1], that are
+    # greater than key, to one position ahead
+    # of their current position 
+    j = i-1
+    while j >=0 and key < arr[j]: 
+        arr[j+1] = arr[j] 
+        j -= 1
+    arr[j+1] = key
+print(arr)`
+const insertionSoryDynamic = `# Driver code to test above 
+size = int(input("Enter size: "))
+arr = [0] * size
+
+for i in range(len(arr)):
+    arr[i] = int(input("Element: "))
+
+# Traverse through 1 to len(arr) 
+for i in range(1, len(arr)): 
+    key = arr[i] 
+    # Move elements of arr[0..i-1], that are 
+    # greater than key, to one position ahead 
+    # of their current position 
+    j = i-1
+    while j >=0 and key < arr[j]: 
+        arr[j+1] = arr[j] 
+        j -= 1
+    arr[j+1] = key
+print(arr)`
 
 export interface parserOutput {
     data: Array<string>;
@@ -160,7 +195,7 @@ const compareDataSegment = (a: string, b: string) => {
 
 try {
     const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(arrOpTest) as parserOutput;
+    const sampleOutput: parserOutput = parse(insertionSoryDynamic) as parserOutput;
     //console.log(sampleOutput)
     const text = []
     const functions = []
