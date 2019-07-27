@@ -65,6 +65,9 @@ Important
    1) look into indent, dedent, samedent [better bRut much harder]
    2) write code to translate input file of valid python where indents are replaced to something easier to parse, such as '{' [easier but try to avoid at all cost]
  - arrays
+    [FIXED] Need to differentiate between static lists(i.e. those declared at compile time) vs dynamic lists(i.e. those declared at run time)
+                static  lists loaded by: la $t0, staticList 
+                dynamic lists loaded by: lw $t0, dynamicList
     [DONE] Array declarations
     - Array operations
       -[DONE] element assignment
