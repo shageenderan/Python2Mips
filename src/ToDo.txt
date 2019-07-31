@@ -69,17 +69,19 @@ Important
                 static  lists loaded by: la $t0, staticList 
                 dynamic lists loaded by: lw $t0, dynamicList
     [DONE] Array declarations
-    - Array operations
+    [DONE FOR NOW] Array operations
       -[DONE] element assignment
       - [DONE] print(array)
         - [DONE]print(elem)
       - [DONE] input(array)
         - [DONE] input(elem)
-      -len(array); Do this by adding len as par of Functions in the parser.
-      -translate loops in range(len(array))
-  -translate array tokens
-    -add printing/inputting of arrays
-    -add some basic array functions(len, append, ...)
+      - [DONE] len(array); Do this by adding len as par of Functions in the parser.
+      - [DONE] translate loops in range(len(array))
+  -translate functions
+    -translate function declarations
+      -add a flag while parsing to indicate if variables are to be added to the data stack. Set this variable to false when parsing for functions to
+      avoid adding local variables and parameters to the data stack.
+    -translate function calling
   -dynamic allocation for arrays(?)
   -fix data translation for string arrays
  - functions
