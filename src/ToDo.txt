@@ -79,7 +79,7 @@ Important
       - [DONE] translate loops in range(len(array))
   -translate functions
     -translate function declarations
-      -add a flag while parsing to indicate if variables are to be added to the data stack. Set this variable to false when parsing for functions to
+      [IN PROGRESS] add a flag while parsing to indicate if variables are to be added to the data stack. Set this variable to false when parsing for functions to
       avoid adding local variables and parameters to the data stack.
     -translate function calling
   -dynamic allocation for arrays(?)
