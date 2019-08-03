@@ -9,7 +9,8 @@
     const functionStack = [];
     let prevIndentCount = 0;
     function print(...s) { console.log(...s); }
-    let variables = {}, stringVariables = {}, stringPresent = false, i = 0;
+    let insideFunctionDeclaration = false, currentLocalVariableCount = 1, currentParameterCount = 2, functionMap = {};
+    let variables = {}, functionParameters = {}, functionVariables = {}, stringVariables = {}, stringPresent = false, i = 0;
     function extractList(list, index) {
         return list.map(function (element) { return element[index]; });
     }
@@ -26,6 +27,9 @@
     }
     
     function isSameType(val1, val2) {
+          if( (!val1 || !val2) && insideFunctionDeclaration) {
+              return true
+          }
           if (val1.type.includes("string") && val2.type.includes("string")) {
               return true
           }
@@ -52,7 +56,7 @@
     }
   
     function calculateSpaceNeeded(value, variable) {
-        console.log("calculateSpace>", "variables", variables, "current", variables[variable])
+        console.log("calculateSpace>", "variables", variables, functionParameters, functionVariables, "current", getVariable({value:variable}))
         console.log("calculateSpace>", "calculating for", value)
         if (value.token === "input") {
             console.log("calculateSpace>", "returned", 60)
@@ -60,8 +64,13 @@
         }
         
         if (value.token === "array") {
-                console.log("calculateSpace>", "returned", 200)
-              return 200; // max input size of array. 200/4 = 50. Max 50 int elems
+            console.log("calculateSpace>", "returned", 200)
+            return 200; // max input size of array. 200/4 = 50. Max 50 int elems
+        }
+
+        if (value.token === "artihmeticExpression") {
+            console.log("calculateSpace>", "returned", 4)
+            return 4; 
         }
         
         if (typeof value === "number") {
@@ -73,15 +82,15 @@
             console.log("calculateSpace>", "current is boolean")
             return 4
         }
-        
-        if (variables[variable].type && variables[variable].type.includes('variable')) {
-             return variables[variable].space
-        }
-  
-        if (value.length || value === "") {
-            console.log("calculateSpace>", "current is string", variables[variable])
+
+        if (typeof value === "string") {
+            console.log("calculateSpace>", "current is string", getVariable({value:variable}))
             console.log("calculateSpace>", "returned", value.length + 1)
             return value.length + 1
+        }
+        
+        if (getVariable({value:variable}).type && getVariable({value:variable}).type.includes('variable')) {
+             return getVariable({value:variable}).space
         }
   
         else {
@@ -95,10 +104,10 @@
                 }
   
                 else if (elem.type === "variable") {
-                    let rootElem = variables[elem.value]
+                    let rootElem = getVariable(elem)
                     console.log("calculateSpace>", "looking for variables value", rootElem)
                     while (rootElem.type !== "string") {
-                        rootElem = variables[rootElem.value]
+                        rootElem = getVariable(rootElem)
                         console.log("calculateSpace>", "looking for variables value loop", rootElem)
                     }
                     spaceNeeded += (isNaN(rootElem.value.length) ? rootElem.space : rootElem.value.length)
@@ -113,16 +122,17 @@
   
     function calculateMinSpaceNeeded(value, variable) {
         console.log("[MIN]", value, variable)
-        console.log("[MIN]", variables, variables[variable])
+        console.log("[MIN]", variables, getVariable({value:variable}))
         let spaceNeeded = calculateSpaceNeeded(value, variable);
-        return Math.max(variables[variable].space ? variables[variable].space : 0, spaceNeeded)
+        return Math.max(getVariable({value:variable}).space ? getVariable({value:variable}).space : 0, spaceNeeded)
     }
   
     //returns -1 if variable already in dataStack
     function assignValueToVariable(variable, type, value) {
         console.log("assignValueToVariable>", "params", variable, type, value)
-        console.log("assignValueToVariable>", "current variables before this assignment", variables)
-        if (variables[variable].type === undefined) {
+        console.log("assignValueToVariable>", "current variables before this assignment", variables, functionVariables, functionParameters, "[Map] >", functionMap)
+        console.log("assignValueToVariable>", insideFunctionDeclaration ? "currently in a function" : "not in a function")
+        if (getVariable({value:variable}).type === undefined) {
             const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
             console.log("assignValueToVariable> first time variable assignment-", "variable index", variableIndex)
             let newVal = "noTypeYet"
@@ -130,21 +140,37 @@
                 const valueIndex = dataStack.findIndex(elem => elem.slice(0, value.length) === value)
                 console.log("assignValueToVariable> value index", valueIndex)
                 console.log("assignValueToVariable>", "type is a variable")
-                variables = { ...variables, [variable]: { type, value, space: variables[value] ? variables[value].space : calculateMinSpaceNeeded(value, variable)} }
-                dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2)}`;
+                if (insideFunctionDeclaration) {
+                    console.log("assignValueToVariable>", "type is a function variable")
+                    functionVariables = {...functionVariables, [functionMap[variable]]: { type, value, space: variableContext ? variableContext.space : calculateMinSpaceNeeded(value, variable)} }
+                }
+                else {
+                    console.log("assignValueToVariable>", "type is a variable")
+                    variables = { ...variables, [variable]: { type, value, space: variables[value] ? variables[value].space : calculateMinSpaceNeeded(value, variable)} }
+                    dataStack[variableIndex] = `${variable}:${dataStack[valueIndex].slice(2)}`;
+                }
                 return;
             }
             else if (type === "arrayElement") {
                 console.log("arrayElement assignment")
                 //calculateMinSpaceNeeded(value, variable)
-                console.log("arrayElement assignment >", variable, type, value)
-                variables = { ...variables, [variable]: { type: value.type, value, space: 4 } }
+                if (insideFunctionDeclaration) {
+                    functionVariables = {...functionVariables, [functionMap[variable]]: { type: value.type, value, space: 4 } }
+                }
+                else {
+                    variables = { ...variables, [variable]: { type: value.type, value, space: 4 } }
+                }
                 return;
             }
             else if (type === "artihmeticExpression") {
                 console.log("assignValueToVariable>", "type is a artihmeticExpression")
-                variables = { ...variables, [variable]: { type, value, space: 4 } }
-                dataStack[variableIndex] = `${variable}: \t.word\t0`
+                if (insideFunctionDeclaration) {
+                    functionVariables = {...functionVariables, [functionMap[variable]]: { type, value, space: 4 } }
+                }
+                else {
+                    variables = { ...variables, [variable]: { type, value, space: 4 } }
+                    dataStack[variableIndex] = `${variable}: \t.word\t0`
+                }
                 return;
             }
             else if (type === "array") {
@@ -162,20 +188,35 @@
             }
             else if (type === "stringConcatenation") {
                 console.log("assignValueToVariable>", "type is a stringConcatenation")
-                variables = { ...variables, [variable]: { type: "string", value, space: calculateMinSpaceNeeded(value, variable) } }
-                dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value, variable)} #{enter a more exact space for variable: '${variable}'}`
+                if (insideFunctionDeclaration) {
+                    functionVariables = {...functionVariables, [functionMap[variable]]: { type: "string", value, space: calculateMinSpaceNeeded(value, variable) } }
+                }
+                else {
+                    variables = { ...variables, [variable]: { type: "string", value, space: calculateMinSpaceNeeded(value, variable) } }
+                    dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value, variable)} #{enter a more exact space for variable: '${variable}'}`
+                }
                 return;
             }
             else if (value && value.token === "input") {
                 console.log("assignValueToVariable>", "type is a input: ", value)
-                dataStack[variableIndex] = `${variable}: \t.space\t${value.type == "int" ? 4 : 60} #{enter a more exact space for variable: '${variable}'}`
-                variables = value.type === "int" ? { ...variables, [variable]: { type: "int", value, space: 4 } } : { ...variables, [variable]: { type: "string", value, space: 60 } } //assumed input size
+                if (insideFunctionDeclaration) {
+                    functionVariables = value.type === "int" ? { ...functionVariables, [functionMap[variable]]: { type: "int", value, space: 4 } } : { ...functionVariables, [functionMap[variable]]: { type: "string", value, space: 60 } } //assumed input size
+                }
+                else {
+                    dataStack[variableIndex] = `${variable}: \t.space\t${value.type == "int" ? 4 : 60} #{enter a more exact space for variable: '${variable}'}`
+                    variables = value.type === "int" ? { ...variables, [variable]: { type: "int", value, space: 4 } } : { ...variables, [variable]: { type: "string", value, space: 60 } } //assumed input size
+                }
                 return;
             }
             else if (type === "boolean") {
                 console.log("assignValueToVariable>", "type is a boolean")
-                variables = { ...variables, [variable]: { type, value, space: 4 } }
-                dataStack[variableIndex] = value ? `${variable}: \t.word\t1`: `${variable}: \t.word\t0`
+                if (insideFunctionDeclaration) {
+                    functionVariables = { ...functionVariables, [functionMap[variable]]: { type, value, space: 4 } }
+                }
+                else {
+                    variables = { ...variables, [variable]: { type, value, space: 4 } }
+                    dataStack[variableIndex] = value ? `${variable}: \t.word\t1`: `${variable}: \t.word\t0`
+                }
                 return;
             }
             else {
@@ -188,9 +229,14 @@
                     console.log("assignValueToVariable> type is a:", newVal)
                 }
                 if (newVal !== "noTypeYet") {
-                      console.log("assignValueToVariable> calculating for value, variable:", value, variable)	
-                    variables = { ...variables, [variable]: { type, value, space: type === "string" ? calculateMinSpaceNeeded(value, variable) : 4 } } //4 bytes = word
-                    dataStack[variableIndex] = newVal
+                    console.log("assignValueToVariable> calculating for value, variable:", value, variable)	
+                    if (insideFunctionDeclaration) {
+                        functionVariables = { ...functionVariables, [functionMap[variable]]: { type, value, space: type === "string" ? calculateMinSpaceNeeded(value, variable) : 4 } } //4 bytes = word
+                    }
+                    else {
+                        variables = { ...variables, [variable]: { type, value, space: type === "string" ? calculateMinSpaceNeeded(value, variable) : 4 } } //4 bytes = word
+                        dataStack[variableIndex] = newVal
+                    }
                 }
                 else { console.log("assignValueToVariable> not sure what this is:", variable) }
             }
@@ -202,29 +248,46 @@
             console.log("assignValueToVariable> variable has been assigned before")
             console.log("assignValueToVariable>", dataStack)
             console.log("assignValueToVariable>", functionStack)
+
+            //reset initial declaration to false
             const initialDeclarationIndex = functionStack.filter(elem => elem.token !== "comment").findIndex(elem => elem.properties.variable === variable)
             console.log("assignValueToVariable> initial declaration index: ", initialDeclarationIndex)
             if (initialDeclarationIndex !== -1) {
-                    //reset initial declaration to false
                   functionStack[initialDeclarationIndex] = { ...functionStack[initialDeclarationIndex], properties: { ...functionStack[initialDeclarationIndex].properties, value: { ...functionStack[initialDeclarationIndex].properties.value, initialDeclaration: false } } }
             }
-            const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
-            console.log("assignValueToVariable>", variableIndex)
-            dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value ? value : 4, variable)} #{enter a more exact space for variable: '${variable}'}`
+
+            //reset datastack variable to make its value more dynamic
+            if (!insideFunctionDeclaration) {
+                const variableIndex = dataStack.findIndex(elem => elem.slice(0, variable.length) === variable)
+                console.log("assignValueToVariable>", variableIndex)
+                dataStack[variableIndex] = `${variable}: \t.space\t${calculateMinSpaceNeeded(value ? value : 4, variable)} #{enter a more exact space for variable: '${variable}'}`           
+            }
+
+            //updating variables
             if (type === "int" || type === "artihmeticExpression") {
-                variables = { ...variables, [variable]: { type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable) } }
+                if (insideFunctionDeclaration) {
+                    functionVariables = { ...functionVariables, [functionMap[variable]]: {type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable) } }
+                }
+                else {
+                    variables = { ...variables, [variable]: {type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable) } }
+                }
                 console.log(dataStack)
                 console.log(variables)
             }
             if (type === "stringConcatenation" || type === "string") {
-                variables = { ...variables, [variable]: { type: "string", value, space: calculateSpaceNeeded(value, variable) } }
+                if (insideFunctionDeclaration) {
+                    functionVariables = { ...functionVariables, [functionMap[variable]]: { type: "string", value, space: calculateSpaceNeeded(value, variable) } }
+                }
+                else {
+                    variables = { ...variables, [variable]: { type: "string", value, space: calculateSpaceNeeded(value, variable) } }
+                }
                 console.log(dataStack)
                 console.log(variables)
             }
-            console.log("assignValueToVariable>", "variables after this assignment", variables)
+            console.log("assignValueToVariable>", "variables after this assignment", variables, functionVariables, functionParameters, "[Map] >", functionMap)
             return -1
         }
-        console.log("assignValueToVariable>", "variables after this assignment", variables)
+        console.log("assignValueToVariable>", "variables after this assignment", variables, functionVariables, functionParameters, "[Map] >", functionMap)
     }
   
     //looks for a variable in the function stack
@@ -265,31 +328,70 @@
         }
     }
   
-    function addVariableToData(str, functionVariable) {
+    function addVariableToData(str, functionArgs={}) {
         //switch on str value
         //console.log(str)
-        if (functionVariable) {
-        	variables = { ...variables, [str]: {} }
+        console.log("addVariableToData > FunctionArgs >", functionArgs)
+        if (functionArgs.type === "parameter" && !(str in functionMap)) {
+            //this is in reference to $fp, i.e. first argument of a function should be at 8($fp), second at 12($fp) and so on....
+            console.log("addVariableToData>", "parameter register value is>", currentParameterCount * 4)
+            functionParameters = { ...functionParameters, [`${currentParameterCount * 4}($fp)`]: {...functionArgs.value, value: `${currentParameterCount * 4}($fp)`, reference: str} }
+            functionMap = {...functionMap, [str]: `${currentParameterCount * 4}($fp)`}
+            console.log("addVariableToData>", "returning value>", functionParameters, functionMap)
+            currentParameterCount++;
+            return
+        }
+        else if (functionArgs.type === "variable" && !(str in functionMap)) {
+            //this is in reference to $fp, i.e. first local variable of a function should be at -4($fp), second at -8($fp) and so on....
+            console.log("addVariableToData>", "local variable register value is>", currentLocalVariableCount * -4)
+            functionVariables = { ...functionVariables, [`${currentLocalVariableCount * -4}($fp)`]: {...functionArgs.value, value: `${currentLocalVariableCount * -4}($fp)`, reference: str} }
+            functionMap = {...functionMap, [str]: `${currentLocalVariableCount * -4}($fp)`}
+            console.log("addVariableToData>", "returning value>", functionVariables, functionMap)
+            currentLocalVariableCount++;
             return
         }
         const found = dataStack.find(elem => elem.slice(0, str.length) === str)
-        if (!found) {
+        if (!found && !insideFunctionDeclaration) {
             variables = { ...variables, [str]: {} }
             dataStack.push(`${str}: \t.space\t60 #{enter a more exact space for variable: '${str}'}`)
         }
     }
+
+    function getVariable(variable) {
+        const varName = variable.value
+        console.log("getVariable > searching for variable >", varName)
+        if(insideFunctionDeclaration){
+            if(functionParameters[functionMap[varName]]){
+                console.log(`Found "${varName}" in => function parameters, returning`, functionParameters[functionMap[varName]])
+                return functionParameters[functionMap[varName]]
+            }
+            else if(functionVariables[functionMap[varName]]){
+                console.log(`Found "${varName}" in => function variables, returning`, functionVariables[functionMap[varName]])
+                return functionVariables[functionMap[varName]]
+            }
+        }
+        if(variables[varName]){
+                console.log(`Found "${varName}" in => variables`)
+                return variables[varName]
+            }
+        else {error("Variable not declared yet dummy")}
+    }
   
+    function getArrayAllocation(arrayRef) {
+        return getVariable(arrayRef).value.properties ? getVariable(arrayRef).value.properties.allocation : "dynamic"
+    }
+
     function isInt(variable) {
         console.log("[ri]", variable)
         if (variable.type === "int") {
             return true;
         }
         else if (variable.type === "variable") {
-            console.log("[ri] - variables", variables[variable.value])
-            if (variables[variable.value].type === "int") {
+            console.log("[ri] - variables", getVariable(variable))
+            if (getVariable(variable).type === "int") {
                 return true;
             }
-            else if (variables[variable.value].type === "artihmeticExpression") {
+            else if (getVariable(variable).type === "artihmeticExpression") {
                 return true;
             }
         }
@@ -299,15 +401,15 @@
   
   
     function checkString(variable) {
-        console.log("[ra]", variable)
+        console.log("check string >", variable)
         if (variable.type === "string") {
             stringPresent = true;
             return
         }
   
         else if (variable.type === "variable") {
-            console.log("[ra] - variables", variables[variable.value])
-            if (variables[variable.value].type === "string") {
+            console.log("check string > - variables", getVariable(variable))
+            if (getVariable(variable).type === "string") {
                 stringPresent = true;
                 return
             }
@@ -340,6 +442,10 @@
           right: element[3]
         };
       }, head);
+    }
+
+    function functionDeclarationCleanup() {
+        functionParameters = {}, functionVariables = {}, insideFunctionDeclaration = false, currentLocalVariableCount = 1, currentParameterCount = 2, functionMap = {};   
     }
   
     function _inOrderArithmetic(root) {
@@ -487,84 +593,99 @@
     / BinaryExpression
     / Literal
     / Comment
-   
+  
+ FunctionDeclaration
+   = "def" _ identifier:Variable _"(" _ parameters:(head:Variable? tail:(_ "," _ param:Variable {return param})* {if (head) {addVariableToData(head.value, {type:"parameter", value:{...head, type:"localVariable"} })}; tail.forEach(elem => addVariableToData(elem.value, {type:"parameter", value:{...elem, type:"localVariable"}})); return head ? [head, ...tail] : null}) _ ")" _ ":" _ "\n"
+       (Indent {insideFunctionDeclaration = true}) head:(Statement) _ tail:(("\n") Samedent statement:Statement _ {return statement})* Dedent _ (_/"\n") _ 
+   {   const body = [head, ...tail]
+   	   const localVariableCount = currentLocalVariableCount - 1 
+       console.log("before clear>", functionVariables)
+   	   functionDeclarationCleanup();
+       return {token:"functionDeclaration", properties: {identifier: identifier.value, parameters, localVariableCount, body} }
+   }
+  
   BinaryExpression
     = expr:ArtihmeticExpression {return expr}
   
-  FunctionDeclaration
-   = "def" _ name:Variable _"(" _ parameters:(head:Variable? tail:(_ "," _ param:Variable {return param})* {addVariableToData(head.value, true); tail.forEach(elem => addVariableToData(elem.value, true)); return [head, ...tail]}) _ ")" _ ":" _ "\n"
-       Indent head:(Statement) _ tail:(("\n") Samedent statement:Statement _ {return statement})* Dedent _ "\n"? _ 
-   {   const body = [head, ...tail]
-       return {token:"functionDeclaration", properties: {name, parameters, body} }
-   }
-  
   VariableAssignment
-    = variable:(Variable) assignment:Assignment {
-    addVariableToData(variable.value)
-    return assignValueToVariable(variable.value, assignment.type, assignment.value ? assignment.value : assignment) === -1 ? 
-    {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value:{...assignment}} }
-  : {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value:{...assignment, initialDeclaration: true}} } }
+    = variable:(val:Variable { if(insideFunctionDeclaration) addVariableToData(val.value, {type:"variable", value:{type:"variable"}}); return val}) assignment:Assignment {
+    if (insideFunctionDeclaration) {
+        console.log("Currently inside a function")
+        addVariableToData(variable.value, {type:"variable", value:assignment})
+    }
+    else {
+        addVariableToData(variable.value)
+    }
+    return assignValueToVariable(variable.value, assignment.type, assignment.value !== undefined ? assignment.value : assignment) === -1 ? 
+    {token: "variableAssignment", properties:{variable:insideFunctionDeclaration ? functionMap[variable.value] : variable.value, space: getVariable(variable).space, value:{...assignment}} }
+  : {token: "variableAssignment", properties:{variable:insideFunctionDeclaration ? functionMap[variable.value] : variable.value, space: getVariable(variable).space, value:{...assignment, initialDeclaration: true}} } }
     / variable:(Variable) _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
-      addVariableToData(variable.value)
-      console.log("myVal", value)
-      const operator = sep.split("=")[0]
-      if(value.type === "artihmeticExpression"){
-          const arValue = value
-          console.log("arithmrtic >", operator, arValue)
-          value = {
-              token: "artihmeticExpression",
-              properties: {
-                  operator,
-                  left: {
-                      ...variable
-                  },
-                      right: {
-                      ...value
-                  }
-              },
-                  type:"artihmeticExpression",
-          }
-      }
-      else{
-          if(value.type.includes("string")){
-              const strVal = value.type.includes("variable") ? value : addStringToData(value.value)
-              value = {
-                  token: "stringConcatenation",
-                  properties: {
-                      addedStrings: [variable, strVal]
-                  }
-              }
-          }
-          else if(value.type.includes("int")){
-              console.log("int >", operator)
-              const intVal = value
-              value = {
-                  token: "artihmeticExpression",
-                  properties: {
-                      operator,
-                      left: {
-                          ...variable
-                      },
-                      right: {
-                          ...intVal
-                      }
-                  },
-                  type:"artihmeticExpression",
-              }
-          }
-          else if(value.type === "stringConcat"){
-              value = {
-                  token: "stringConcatenation",
-                  properties: {
-                      addedStrings: [variable, ...value.properties.addedStrings]
-                  },
-                  type: "stringConcat"
-              }
-          }
-          console.log("[ru]", value, value.type)
-      }
-      return {token: "variableAssignment", properties:{variable:variable.value, space: variables[variable.value].space, value} }
-  }
+        console.log("myVal", value)
+        const operator = sep.split("=")[0]
+        if(value.type === "artihmeticExpression"){
+            const arValue = value
+            console.log("arithmrtic >", operator, arValue)
+            value = {
+                token: "artihmeticExpression",
+                properties: {
+                    operator,
+                    left: {
+                        ...variable
+                    },
+                        right: {
+                        ...value
+                    }
+                },
+                    type:"artihmeticExpression",
+            }
+        }
+        else{
+            if(value.type.includes("string")){
+                const strVal = value.type.includes("variable") ? value : addStringToData(value.value)
+                value = {
+                    token: "stringConcatenation",
+                    properties: {
+                        addedStrings: [variable, strVal]
+                    }
+                }
+            }
+            else if(value.type.includes("int")){
+                console.log("int >", operator)
+                const intVal = value
+                value = {
+                    token: "artihmeticExpression",
+                    properties: {
+                        operator,
+                        left: {
+                            ...variable
+                        },
+                        right: {
+                            ...intVal
+                        }
+                    },
+                    type:"artihmeticExpression",
+                }
+            }
+            else if(value.type === "stringConcat"){
+                value = {
+                    token: "stringConcatenation",
+                    properties: {
+                        addedStrings: [variable, ...value.properties.addedStrings]
+                    },
+                    type: "stringConcat"
+                }
+            }
+            console.log("[ru]", value, value.type)
+        }
+        if (insideFunctionDeclaration) {
+            console.log("Currently inside a function")
+            addVariableToData(variable.value, {type:"variable", value})
+        }
+        else {
+            addVariableToData(variable.value)
+        }
+        return {token: "variableAssignment", properties:{variable:insideFunctionDeclaration ? functionMap[variable.value] : variable.value, space: getVariable(variable).space, value} }
+    }
   
   Assignment
    =  _ "=" _ "int" _ "(" _ value:(Input/ArtihmeticExpression) _ ")" {return {...value, type: "int"}}
@@ -619,7 +740,7 @@
         if(val.token === "stringConcatenation"){
             return val.properties.addedStrings.map(str => {
               if(str.type === "variable") {
-                return {...str, type:`variable-${variables[str.value].type}`}
+                return {...str, type:`variable-${getVariable(str)[str.value].type}`}
               }
               else {
                   return str
@@ -642,7 +763,7 @@
     }
     / val:Boolean {return val.value ? addStringToData("True") : addStringToData("False")}
     //everything below is not needed
-    / value: Variable {return {...value, type:variables[value.value].type ? `variable-${variables[value.value].type}` : `variable`} }
+    / value: Variable {return {...value, type:getVariable(value).type ? `variable-${getVariable(value).type}` : `variable`} }
     / str:StringLiteral {return addStringToData(str.value)}
     / IntegerLiteral
     / _ !(","_) {return { type: null};}
@@ -760,32 +881,44 @@
          const body = setInitialDeclarationFalse([head, ...tail])
          return {token: "loop", properties: {condition, body}} }
      
-   / "for" _ variable:(current:Variable {addVariableToData(current.value); return {...current, type: "variable-int"}}) _ "in" _ "range" _ "(" _ start:(Function/ArtihmeticExpression) _ ","? _ end:(Function/ArtihmeticExpression)? _ ","? _ increment:(Function/ArtihmeticExpression)? _")" _ ":" _ "\n"
+   / "for" _ variable:(current:Variable {
+        if (insideFunctionDeclaration) {
+            addVariableToData(current.value, {type:"variable", current});
+        }
+        else{
+            addVariableToData(current.value);
+        }
+        assignValueToVariable(current.value, "int", 0)
+        return {...current, type: "variable-int"}
+    }) 
+   _ "in" _ "range" _ "(" _ start:(Function/ArtihmeticExpression) _ ","? _ end:(Function/ArtihmeticExpression)? _ ","? _ increment:(Function/ArtihmeticExpression)? _")" _ ":" _ "\n"
    Indent head:(Statement) _ tail:("\n" Samedent statement:Statement _ {return statement})* Dedent
-   {   const body = setInitialDeclarationFalse([head, ...tail])
+   {    const body = setInitialDeclarationFalse([head, ...tail])
+        const relativeVariable = insideFunctionDeclaration ? functionMap[variable.value] : variable.value
+        const left = insideFunctionDeclaration ? {...variable, value: functionMap[variable.value]} : variable
+        console.log("Loop > Left Node >", left)
         if (!end) {
           end = start
           start = {
-                  type: "int",
-                  value: 0
-                  }
+                type: "int",
+                value: 0
+            }
        }
        const condition = {
-                 type: "binaryBoolean",
-                 left: variable,
-                 comparison: "<",
-                 right: end
-              }
-       assignValueToVariable(variable.value, "int", 0)
+                type: "binaryBoolean",
+                left,
+                comparison: "<",
+                right: end
+            }
        body.push({token: "variableAssignment", 
               properties: {
-                  variable: variable.value,
+                  variable: relativeVariable,
                   space: 4,
                   value: {
                   token: "artihmeticExpression",
                   properties: {
                       operator: "+",
-                      left: variable,
+                      left,
                       right: increment ? increment : {type: "int", value: 1}
                   },
                   type: "artihmeticExpression"
@@ -793,7 +926,7 @@
               }
           })
         return [
-            {token: "variableAssignment", properties:{variable:variable.value, space: 4, value:{...start,type: start.type === "int" ? "int" : start.type + "-int", initialDeclaration: false}}} ,
+            {token: "variableAssignment", properties:{variable: relativeVariable, space: 4, value:{...start,type: start.type === "int" ? "int" : start.type + "-int", initialDeclaration: false}}} ,
             {token: "loop", properties:{condition, body: flatten(body)} }
       ]
   }
@@ -829,32 +962,35 @@
   ArrayLength
    = "len" _ "(" _ arrayRef:Variable _ ")"
   {	
-      const currentType = variables[arrayRef.value].type === "artihmeticExpression" ? "int" : variables[arrayRef.value].type
+      const currentType = getVariable(arrayRef).type === "artihmeticExpression" ? "int" : getVariable(arrayRef).type
       const type = currentType ? currentType.includes("variable-") ? currentType.slice(currentType.indexOf("variable-")): `variable-${currentType}` : `variable`
-      const allocation = variables[arrayRef.value].value.properties.allocation
+      const allocation = getArrayAllocation(arrayRef)
+      arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
       return {name:"len", parameters:[{...arrayRef, type, allocation}]}
   }
   
   ElementAssignment
    = arrayRef:Variable _ "[" _ index:ArtihmeticExpression _ "]" value:Assignment {
-      console.log(value,variables[arrayRef.value].value.properties)
-      console.log("[Variables]", variables)
+      console.log(value,getVariable(arrayRef).value.properties)
+      console.log("[Variables]", getVariable(arrayRef))
       if (value.type === "arrayElement") {
           console.log("checking array element")
-          console.log(value.value,variables[arrayRef.value].value.properties)
-          if (!isSameType(value.value, variables[arrayRef.value].value.properties) ) {
+          console.log(value.value,getVariable(arrayRef).value.properties)
+          if (!isSameType(value.value, getVariable(arrayRef).value.properties) ) {
               error("Only arrays of elements with the same data types are supported")
           }
       }
-       else if (!isSameType(value, variables[arrayRef.value].value.properties) ) {
+       else if (!isSameType(value, getVariable(arrayRef).value.properties) ) {
           error("Only arrays of elements with the same data types are supported")
       }
       //can add check for array length and index here
-      const allocation = variables[arrayRef.value].value.properties.allocation
+      const allocation = getArrayAllocation(arrayRef)
+      arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
       return {arrayRef: {...arrayRef, allocation}, index, value:{...value}}
   }
    / arrayRef:Variable _ "[" _ index:ArtihmeticExpression _ "]" _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
       //console.log("myVal", value)
+      arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
       if(value.type === "artihmeticExpression"){
           const operator = sep.split("=")[0]
           const arValue = value
@@ -911,7 +1047,7 @@
           }
           console.log("[ru]", value, value.type)
       } 
-      const allocation = variables[arrayRef.value].value.properties.allocation
+      const allocation = getArrayAllocation(arrayRef)
       return {arrayRef:{...arrayRef, allocation}, index, value}
   }
   
@@ -1058,8 +1194,9 @@
    
   ArrayElement
    = arrayRef:Variable _ "[" _ index:ArtihmeticExpression _"]" _ { 
-       let type = variables[arrayRef.value].value.properties.type
-      let allocation = variables[arrayRef.value].value.properties.allocation
+       let type = getVariable(arrayRef).value.properties ? getVariable(arrayRef).value.properties.type : "int"
+       let allocation = getArrayAllocation(arrayRef)
+       arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
        return {type:"arrayElement", value: {arrayRef:{...arrayRef, allocation}, index, type}} 
   }
   
@@ -1179,7 +1316,9 @@
          stringPresent = false;
          console.log("here > ", variables, value, variables[value.value] ? variables[value.value].type : "")
          if(value.type  === "variable") {
-            const currentType = variables[value.value].type === "artihmeticExpression" ? "int" : variables[value.value].type
+            const variable = getVariable(value)
+            console.log("Found variable => ", variable)
+            const currentType = variable.type === "artihmeticExpression" ? "int" : variable.type
             let type;
             console.log("currentType>", currentType)
             if(currentType) {
@@ -1188,12 +1327,21 @@
                    : `variable-${currentType}` 
             }           
             else { type = `variable`}
-            console.log("returning >", value, type)
             if(type === "variable-array") {
-                const allocation = variables[value.value].value.properties.allocation
+                const allocation = getArrayAllocation(variable)
+                if (insideFunctionDeclaration) {
+                	console.log("returning >", {...value, value:functionMap[value.value], type, allocation})
+                    return {...value, value:functionMap[value.value], type, allocation}
+                }
+                console.log("returning >", value)
                 return {...value, type, allocation}
             }
             else { 
+                if (insideFunctionDeclaration) {
+                	console.log("returning >", {...value, value:functionMap[value.value], type})
+                    return {...value, value:functionMap[value.value], type}
+                }
+                console.log("returning >", value)
                 return {...value, type}
             }
           }
@@ -1202,7 +1350,7 @@
           }
       }
       else {
-        console.log("[ra]-string present", stringPresent);
+        console.log("string present >", stringPresent);
         const currentStringPresent = stringPresent;
         stringPresent = false;
         return currentStringPresent ?  {token:"stringConcatenation", properties:{addedStrings: _inOrderArithmetic(value), } , type:"stringConcat", } 
@@ -1222,4 +1370,4 @@
   
   ArtihmeticFactor
     = "(" _ expr:ArtihmeticStart _ ")" { return expr; }
-    / ArrayElement / IntegerLiteral / Variable / StringLiteral
+    / ArrayElement / IntegerLiteral / val:Variable {return insideFunctionDeclaration ? {type: `variable-${getVariable(val).type}`, value:functionMap[val.value]} : val} / StringLiteral
