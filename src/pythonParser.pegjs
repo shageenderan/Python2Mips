@@ -1337,7 +1337,7 @@
             }           
             else { type = `variable`}
             if(type === "variable-array") {
-                const allocation = getArrayAllocation(variable)
+                const allocation = getArrayAllocation(value)
                 if (insideFunctionDeclaration) {
                 	console.log("returning >", {...value, value:functionMap[value.value], type, allocation})
                     return {...value, value:functionMap[value.value], type, allocation}
