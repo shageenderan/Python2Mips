@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment, ArrayElement, FunctionToken } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment, ArrayElement, FunctionToken, FunctionProperties } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -12,6 +12,8 @@ interface parsedMipsArithmetic {
 export default class Translate {
 
     functions: Array<string> = [];
+    /** array of user defined functions to be returned at the end */
+    userDefinedFunctions: Array<string> = [];
     /** Current if statement */
     ifCounter: number = -1;
     /** Stack to keep track of if statements being used, especially when nested */
@@ -52,11 +54,17 @@ export default class Translate {
             case "arrayOperation":
                 mipsCode += this.translateArrayOperation(pyCode as ArrayOperation);
                 break;
+            case "function":
+                mipsCode += this.translateFunction(pyCode as FunctionToken);
+                break;
+            case "functionDeclaration":
+                mipsCode += "translate function declaration";
+                break;
             default:
                 //mipsCode += `#some error occured got token: ${pyCode.token}`;;
                 break;
         }
-        return { mipsCode, functions: this.functions };
+        return { mipsCode, functions: {userDefined: this.userDefinedFunctions, inBuilt:this.functions} };
     }
 
     public translateArrayOperation(token: ArrayOperation) {
@@ -195,39 +203,53 @@ export default class Translate {
     */
     public translateFunction(func: FunctionToken) {
         let mipsFunction = ``
-        //load each parameter into $a[i]
-        const funcProps = func.properties
-        mipsFunction += this.translateFunctionParameters(funcProps.parameters)
-        //call function
-        mipsFunction += `jal ${funcProps.identifier}\n`
-        if (!funcProps.userDefined) {
-            this.functions.push(funcProps.identifier)
+        const functionProps = func.properties
+        if (functionProps.userDefined) {
+            mipsFunction += this._translateUserDefinedFunction(functionProps)
+        }
+        else {
+            //load each parameter into $a[i]
+            mipsFunction += this.translateFunctionParameters(functionProps.parameters)
+            //call function
+            mipsFunction += `jal ${functionProps.identifier}\n`    
+            this.functions.push(functionProps.identifier)
         }
         return mipsFunction
     }
+
+    private _translateUserDefinedFunction(functionProps: FunctionProperties) {
+        let mipsFunction = ``
+        //save temporary registers
+        //???
+
+        //push arguments to stack
+        mipsFunction += functionProps.parameters.length ? `addi $sp, $sp, ${functionProps.parameters.length * -4}\n` : ``
+        mipsFunction += `jal ${functionProps.identifier}\n`
+        //remove arguments from stack
+        mipsFunction += functionProps.parameters.length ? `addi $sp, $sp, ${functionProps.parameters.length * 4}\n` : ``
+        return mipsFunction;
+    }
     
-    public translateFunctionParameters(parameters: Array<DataObject | ArtihmeticExpressionToken>) {
-        const mipsParameters = parameters.map( (param, index) => {
+    public translateFunctionParameters(parameters: Array<DataObject | ArtihmeticExpressionToken>, userDefined = false) {
+        const mipsParameters = parameters.map((param, index) => {
             switch (param.type) {
                 case "artihmeticExpression":
-                    return this.translateArithmetic(param as ArtihmeticExpressionToken) + `add $a${index}, $t0\n`
+                    return userDefined ? this.translateArithmetic(param as ArtihmeticExpressionToken) + `sw $t0, ${index * 4}($sp)\n` : this.translateArithmetic(param as ArtihmeticExpressionToken) + `add $a${index}, $t0\n`
                 case "int":
-                    return `li $a${index}, ${(param as DataObject).value}\n`;
+                    return userDefined ? `li $t0, ${(param as DataObject).value}\nsw $t0, ${index * 4}($sp)\n` : `li $a${index}, ${(param as DataObject).value}\n`;
                 case "string":
-                    return `la $a${index}, ${(param as DataObject).value}\n`;
+                    return userDefined ? `la $t0, ${(param as DataObject).value}\nsw $t0, ${index * 4}($sp)\n` : `la $a${index}, ${(param as DataObject).value}\n`;
                 case "variable-array":
-                    return `${(param as DataObject).allocation === "static" ? "la" : "lw"} $a${index}, ${(param as DataObject).value}\n`;
+                    return userDefined ? `${(param as DataObject).allocation === "static" ? "la" : "lw"} $t0, ${(param as DataObject).value}\nsw $t0, ${index * 4}($sp)\n` : `${(param as DataObject).allocation === "static" ? "la" : "lw"} $a${index}, ${(param as DataObject).value}\n`;
                 case "variable-int":
-                    return `lw $a${index}, ${(param as DataObject).value}\n`;
+                    return userDefined ? `lw $t0, ${(param as DataObject).value}\nsw $t0, ${index * 4}($sp)\n` : `lw $a${index}, ${(param as DataObject).value}\n`;
                 case "variable-string":
-                    return `la $a${index}, ${(param as DataObject).value}\n`;
+                    return userDefined ? `la $t0, ${(param as DataObject).value}\nsw $t0, ${index * 4}($sp)\n` : `la $a${index}, ${(param as DataObject).value}\n`;
                 default:
                     break;
             }
         })
-
         return mipsParameters.join("");
-
     }
 
     /** Translates print tokens to mips code */
