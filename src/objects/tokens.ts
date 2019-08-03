@@ -14,15 +14,9 @@ export class DataObject {
 export type Assignment = DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken | ArrayToken | ArrayElement
 
 export class Token {
-    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array" | "arrayOperation" | "function";
+    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array" | "arrayOperation" | "function" | "functionDeclaration";
     type?: string;
-    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties | ElementAssignmentProperties | FunctionProperties;
-}
-
-export interface FunctionProperties {
-    name: string;
-    parameters: Array<any>;
-    userDefined: boolean;
+    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties | ElementAssignmentProperties | FunctionProperties | FunctionDeclarationProperties;
 }
 
 export interface StringConcatProperties {
@@ -88,6 +82,12 @@ export interface ArrayTokenProperties {
     length: number | DataObject,
     type: "int" | "string",
     allocation: "static" | "dynamic"
+}
+
+export interface FunctionProperties {
+    identifier: string;
+    parameters: null | Array<any>;
+    userDefined: boolean;
 }
 
 export interface FunctionDeclarationProperties {

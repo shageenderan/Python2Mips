@@ -199,9 +199,9 @@ export default class Translate {
         const funcProps = func.properties
         mipsFunction += this.translateFunctionParameters(funcProps.parameters)
         //call function
-        mipsFunction += `jal ${funcProps.name}\n`
+        mipsFunction += `jal ${funcProps.identifier}\n`
         if (!funcProps.userDefined) {
-            this.functions.push(funcProps.name)
+            this.functions.push(funcProps.identifier)
         }
         return mipsFunction
     }

@@ -728,7 +728,16 @@
   Function
     = IOFunction
     / properties:ArrayFunction { return {token: "function", type: "function", properties} }
-  
+    / properties:FunctionCalls { return {token: "function", type: "function", properties} }
+
+  FunctionCalls
+    = props: UserDefinedFunctions {return {...props, userDefined: true} }
+    // InBuiltFunctions
+
+  UserDefinedFunctions
+    = identifier:Variable _ "(" _ parameters:(head:ArtihmeticExpression? tail:(_ "," _ param:ArtihmeticExpression {return param})* { return head ? [head, ...tail] : null}) _ ")" _ {return {identifier: identifier.value, parameters} }
+ 
+
   IOFunction
     = Print
     / Input
