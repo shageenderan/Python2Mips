@@ -90,6 +90,13 @@ export interface ArrayTokenProperties {
     allocation: "static" | "dynamic"
 }
 
+export interface FunctionDeclarationProperties {
+    identifier: string;
+    parameters: null | Array<DataObject>;
+    localVariableCount: number;
+    body: Array<Token | DataObject>
+}
+
 export class PrintToken {
     token: string;
     properties: IOTokenProperties;
@@ -167,6 +174,11 @@ export class FunctionToken {
     token: "function";
     type: "function";
     properties: FunctionProperties;
+}
+
+export class FunctionDeclarationToken {
+    token: "functionDeclaration";
+    properties: FunctionDeclarationProperties;
 }
 
 export class ArrayLength extends FunctionToken {
