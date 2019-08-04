@@ -11,12 +11,12 @@ export class DataObject {
     allocation?: "dynamic" | "static";
 }
 
-export type Assignment = DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken | ArrayToken | ArrayElement
+export type Assignment = DataObject | ArtihmeticExpressionToken | InputToken | StringConcatenationToken | ArrayToken | ArrayElement | FunctionToken
 
 export class Token {
-    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array" | "arrayOperation" | "function" | "functionDeclaration";
+    token: "print" | "input" | "artihmeticExpression" | "stringConcatenation" | "variableAssignment" | "ifStatement" | "loop" | "loopBreak" | "array" | "arrayOperation" | "function" | "functionDeclaration" | "return";
     type?: string;
-    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties | ElementAssignmentProperties | FunctionProperties | FunctionDeclarationProperties;
+    properties: StringConcatProperties | ArtihmeticExpressionProperties | VariableAssignmentProperties | IfTokenProperties | IOTokenProperties | LoopProperties | LoopBreakProperties | ArrayTokenProperties | ElementAssignmentProperties | FunctionProperties | FunctionDeclarationProperties | ReturnProperties;
 }
 
 export interface StringConcatProperties {
@@ -94,7 +94,13 @@ export interface FunctionDeclarationProperties {
     identifier: string;
     parameters: null | Array<DataObject>;
     localVariableCount: number;
-    body: Array<Token | DataObject>
+    returns: Array<Token | DataObject>;
+    body: Array<Token | DataObject>;
+}
+
+export interface ReturnProperties {
+    value: Token | DataObject;
+    localVariableCount: number;
 }
 
 export class PrintToken {
@@ -179,6 +185,11 @@ export class FunctionToken {
 export class FunctionDeclarationToken {
     token: "functionDeclaration";
     properties: FunctionDeclarationProperties;
+}
+
+export interface ReturnToken {
+    token: "return";
+    properties: ReturnProperties;
 }
 
 export class ArrayLength extends FunctionToken {
