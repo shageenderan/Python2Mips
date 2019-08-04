@@ -166,23 +166,49 @@ for i in range(len(arr)):
 
 # Traverse through 1 to len(arr) 
 for i in range(1, len(arr)): 
+
     key = arr[i] 
     # Move elements of arr[0..i-1], that are 
     # greater than key, to one position ahead 
     # of their current position 
+
     j = i-1
+
     while j >=0 and key < arr[j]: 
         arr[j+1] = arr[j] 
         j -= 1
     arr[j+1] = key
+
 print(arr)`
+const functionTest = `def main():
+    base = 0
+    exp = 0
+    result = 0  
+    base = int(input())
+    exp = int(input())
+    result = power(base, exp) 
+    print(result)
+def power(b, e):
+    result = 1
+    while e > 0:
+        result *= b
+        e -= 1
+    return result
+main()`
+const simpleFunction = `g = 123
+def main():
+    a = -5
+    b = 0
+    c = 230
+    b=g+a
+    print(c-a)
+main()`
 
 export interface parserOutput {
     data: Array<string>;
     tokens: Array<Token>;
 }
 
-//const x:Token<PrintToken> = {token:{}};
 const compareDataSegment = (a: string, b: string) => {
     if(a.slice(a.indexOf(".") + 1, a.indexOf(".") + 6) === "space") {
         return -1
@@ -193,27 +219,37 @@ const compareDataSegment = (a: string, b: string) => {
     return a.slice(a.indexOf(".") + 1) > b.slice(b.indexOf(".")) + 1 ? 1 : -1
 }
 
-try {
-    const pyTranslator = new Translate();
-    const sampleOutput: parserOutput = parse(insertionSoryDynamic) as parserOutput;
-    //console.log(sampleOutput)
-    const text = []
-    const functions = []
-    sampleOutput.tokens.forEach(elem => {
-        // console.log("token: ", elem)
-        let translated = pyTranslator.translate(elem)
-        text.push(translated.mipsCode)
-        functions.push(...translated.functions)
-    })
-    console.log(sampleOutput.data.sort(compareDataSegment))
-    console.log(text)
-    console.log(".data")
-    sampleOutput.data.map(elem => console.log(elem));
-    console.log("\n.text")
-    text.filter(elem => elem === '' ? false : true).forEach(elem => console.log(elem));
-    console.log("addi $v0, $0, 10\nsyscall\n") //exit)
-    functions.filter((item, index) => functions.indexOf(item) >= index).forEach(elem => console.log(mipsFunctions[elem] ? mipsFunctions[elem] : ""));
+export default function translatePython(sourceCode: string) {
+    console.log(sourceCode.split("\n").filter(elem => elem !== '').join('\n'))
+    const trimmedSource = sourceCode.split("\n").filter(elem => elem !== '').join('\n')
+    try {
+        const pyTranslator = new Translate();
+        const sampleOutput: parserOutput = parse(trimmedSource) as parserOutput;
+        //console.log(sampleOutput)
+        const text = []
+        let functions:{userDefined: Array<string>, inBuilt: Array<string>};
+        sampleOutput.tokens.forEach(elem => {
+            // console.log("token: ", elem)
+            let translated = pyTranslator.translate(elem)
+            text.push(translated.mipsCode)
+            functions = {...translated.functions}
+        })
+        console.log(sampleOutput.data.sort(compareDataSegment))
+        console.log(text)
+        console.log(".data")
+        sampleOutput.data.map(elem => console.log(elem));
+        console.log("\n.text")
+        text.filter(elem => elem === '' ? false : true).forEach(elem => console.log(elem));
+        console.log("addi $v0, $0, 10\nsyscall\n") //exit)
+        if (functions.userDefined.length) {
+            console.log("# User Defined Functions");
+            functions.userDefined.forEach(func => console.log(func))
+        }
+        functions.inBuilt.filter((item, index) => functions.inBuilt.indexOf(item) >= index).forEach(elem => console.log(mipsFunctions[elem] ? mipsFunctions[elem] : ""));
+    }
+    catch (e) {
+        console.log(e)
+    }
 }
-catch (e) {
-    console.log(e)
-}
+
+translatePython(insertionSoryDynamic)
