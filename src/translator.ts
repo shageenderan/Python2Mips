@@ -1,4 +1,4 @@
-import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment, ArrayElement, FunctionToken, FunctionProperties } from "./objects/tokens";
+import { PrintToken, InputToken, ArtihmeticExpressionToken, VariableAssignmentToken, DataObject, VariableAssignmentDataObject, StringConcatenationToken, StringConcatProperties, ArtihmeticExpressionProperties, Token, IfToken, IfCondition, UnaryCondition, BinaryCondition, ChainedBooleanCondition, LoopToken, LoopBreakToken, ArrayToken, ArrayOperation, ElementAssignmentProperties, Assignment, ArrayElement, FunctionToken, FunctionProperties, FunctionDeclarationToken, ReturnToken } from "./objects/tokens";
 
 interface parsedMipsArithmetic {
     operator: "+" | "-" | "*" | "/" | "%" | "//",
@@ -14,11 +14,12 @@ export default class Translate {
     functions: Array<string> = [];
     /** array of user defined functions to be returned at the end */
     userDefinedFunctions: Array<string> = [];
+    
     /** Current if statement */
     ifCounter: number = -1;
     /** Stack to keep track of if statements being used, especially when nested */
     ifStack: Array<number> = [];
-
+    
     /** Current loop statement */
     loopCounter: number = -1;
     /** Stack to keep track of loop statements being used, especially when nested */
@@ -55,10 +56,13 @@ export default class Translate {
                 mipsCode += this.translateArrayOperation(pyCode as ArrayOperation);
                 break;
             case "function":
-                mipsCode += this.translateFunction(pyCode as FunctionToken);
+                mipsCode += this.translateFunctionCall(pyCode as FunctionToken);
+                break;
+            case "return":
+                mipsCode += this.translateReturn(pyCode as ReturnToken);
                 break;
             case "functionDeclaration":
-                mipsCode += "translate function declaration";
+                this.userDefinedFunctions.push(this.translateFunctionDeclaration(pyCode as FunctionDeclarationToken));
                 break;
             default:
                 //mipsCode += `#some error occured got token: ${pyCode.token}`;;
@@ -120,6 +124,9 @@ export default class Translate {
                     case "variable-string":
                         assignmentMips += `la $s0, ${register}\nadd $a0, $s0, $0\nla $a1, ${dataObj.value}\njal strConcat\n`
                         break;
+                    case "variable-parameter":
+                        assignmentMips += `lw $t0, ${dataObj.value}\n${register === "$t0" ? "" : `sw $t0, ${register}\n`}`
+                        break;
                     case "arrayElement":
                         const arrayElem = assignmentType as ArrayElement;
                         assignmentMips += `li $t0, 4\n${arrayElem.value.arrayRef.allocation === "static" ? "la" : "lw"} $t1, ${arrayElem.value.arrayRef.value}\nadd $t1, $t1, $t0\n`             //get starting address of list
@@ -144,6 +151,12 @@ export default class Translate {
 
         //     assignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable);
         // }
+
+        else if((assignmentType as FunctionToken).token === "function") {
+            const functionToken = assignmentType as FunctionToken
+            assignmentMips += this.translateFunctionCall(functionToken)
+            assignmentMips += `sw $v0, ${register}\n`
+        }
 
         else if((assignmentType as ArrayToken).token === "array") {
             const arrayToken = assignmentType as ArrayToken
@@ -197,19 +210,64 @@ export default class Translate {
         return mipsArray;
     }
 
+    /** Translates function declarations to Mips code */
+    public translateFunctionDeclaration(definition: FunctionDeclarationToken) {
+        let mipsDeclaration = ``;
+        // Set label
+        mipsDeclaration += `${definition.properties.identifier}:\n`;
+        // Save $ra and $fp
+        mipsDeclaration += `addi $sp, $sp, -8\nsw $ra, 4($sp)\nsw $fp, 0($sp)\n`;
+        // Copy $sp to $fp
+        mipsDeclaration += `addi $fp, $sp, 0\n`;
+        // Allocate local variables
+        mipsDeclaration += `addi $sp, $sp, ${definition.properties.localVariableCount * -4}\n`
+        // Translate body
+        definition.properties.body.forEach(elem => {
+            if ((elem as Token).token){
+                //elem is a token
+                console.log("function declaration translating", elem)
+                mipsDeclaration += this.translate(elem as Token).mipsCode
+            }
+        })
+        // Return result
+        if (definition.properties.returns.length === 0) {
+            // Load 'None' into $v0, this is the default value that will be return if no other value is to be returned
+            mipsDeclaration += `li $v0, -255\t#Loading 'None' into $v0 as a fallback default value to be returned [DevNote: change -255 to string 'None' soon]\n` 
+            // Remove local variables
+            mipsDeclaration += `addi $sp, $sp, ${definition.properties.localVariableCount * 4}\n`
+            // Restore $fp and $ra
+            mipsDeclaration += `lw $fp, 0($sp)\nlw $ra, 4($sp)\naddi $sp, $sp, 8\n`
+            // Return to caller
+            mipsDeclaration += `jr $ra\n`
+        }
+        return mipsDeclaration;
+    }
+
+    public translateReturn(returned: ReturnToken) {
+        let mipsReturn = ``
+        // Load return value in $v0
+        mipsReturn += this._loadValueIntoRegister(returned.properties.value, "$v0", false);
+        mipsReturn += `addi $sp, $sp, ${returned.properties.localVariableCount * 4}\n`
+        // Restore $fp and $ra
+        mipsReturn += `lw $fp, 0($sp)\nlw $ra, 4($sp)\naddi $sp, $sp, 8\n`
+        // Return to caller
+        mipsReturn += `jr $ra\n`
+        return mipsReturn; 
+    }
+
     /** Translate function calls to Mips code by loading each parameter into a register $a[i] and then calling the function.
      *  Automatically diffrentiates between in-built and user-defined functions.
      * @returns result of function called stored in $v0
     */
-    public translateFunction(func: FunctionToken) {
+    public translateFunctionCall(func: FunctionToken) {
         let mipsFunction = ``
         const functionProps = func.properties
         if (functionProps.userDefined) {
-            mipsFunction += this._translateUserDefinedFunction(functionProps)
+            mipsFunction += this._translateUserDefinedFunctionCall(functionProps)
         }
         else {
             //load each parameter into $a[i]
-            mipsFunction += this.translateFunctionParameters(functionProps.parameters)
+            mipsFunction += functionProps.parameters ? this.translateFunctionParameters(functionProps.parameters) : ``
             //call function
             mipsFunction += `jal ${functionProps.identifier}\n`    
             this.functions.push(functionProps.identifier)
@@ -217,16 +275,19 @@ export default class Translate {
         return mipsFunction
     }
 
-    private _translateUserDefinedFunction(functionProps: FunctionProperties) {
+    private _translateUserDefinedFunctionCall(functionProps: FunctionProperties) {
         let mipsFunction = ``
         //save temporary registers
         //???
-
+        //make copy of sp
+        mipsFunction += `addi $fp, $sp, 0\n`
         //push arguments to stack
-        mipsFunction += functionProps.parameters.length ? `addi $sp, $sp, ${functionProps.parameters.length * -4}\n` : ``
+        mipsFunction += functionProps.parameters ? `addi $sp, $sp, ${functionProps.parameters.length * -4}\n` : ``
+        mipsFunction += functionProps.parameters ? this.translateFunctionParameters(functionProps.parameters, true) : ``
+        //call function
         mipsFunction += `jal ${functionProps.identifier}\n`
         //remove arguments from stack
-        mipsFunction += functionProps.parameters.length ? `addi $sp, $sp, ${functionProps.parameters.length * 4}\n` : ``
+        mipsFunction += functionProps.parameters ? `addi $sp, $sp, ${functionProps.parameters.length * 4}\n` : ``
         return mipsFunction;
     }
     
@@ -293,6 +354,9 @@ export default class Translate {
                 mipsCode += `${(printToken as DataObject).allocation === "static" ? "la" : "lw"} $a0, ${(printToken as DataObject).value}\njal printArray\n`
                 this.functions.push("printArray")
                 break;
+            case "variable-parameter":
+                mipsCode += `lw $a0, ${(printToken as DataObject).value}\naddi $v0, $0, 1\nsyscall\n` //all parameters are assumed to be int unless previously assgined
+                break;
             case "artihmeticExpression":
                 //compute arthimetic expression
                 mipsCode += this.translateArithmetic(printToken as ArtihmeticExpressionToken)
@@ -307,7 +371,7 @@ export default class Translate {
             case "function":
                 const func = printToken as FunctionToken;
                 //call function
-                mipsCode += this.translateFunction(func);
+                mipsCode += this.translateFunctionCall(func);
                 //print result of function, should be stored in $v0
                 mipsCode += `add $a0, $v0, $0\nli $v0, 1\nsyscall\n`
                 break;
@@ -375,6 +439,11 @@ export default class Translate {
                         : this._concatVariableMips(addedString.value as string)
                     break;
                 case "variable-string":
+                    mipsCode += (token.properties as StringConcatProperties).addedStrings.indexOf(addedString) === 0 && addedString.value === addr
+                        ? `` // skip adding the same value
+                        : this._concatVariableMips(addedString.value as string)
+                    break;
+                case "variable-parameter":
                     mipsCode += (token.properties as StringConcatProperties).addedStrings.indexOf(addedString) === 0 && addedString.value === addr
                         ? `` // skip adding the same value
                         : this._concatVariableMips(addedString.value as string)
@@ -476,8 +545,8 @@ export default class Translate {
         else if (val1.type.includes("string") && val2.type.includes("string")) {
             return true
         }
-        else if ( (val1.type.includes("int") || val1.type.includes("artihmeticExpression") || val1.type.includes("boolean"))  
-               && (val2.type.includes("int") || val2.type.includes("artihmeticExpression")  || val2.type.includes("boolean")) ) {
+        else if ( (val1.type.includes("int") || val1.type.includes("artihmeticExpression") || val1.type.includes("boolean") || val1.type.includes("parameter"))  
+               && (val2.type.includes("int") || val2.type.includes("artihmeticExpression")  || val2.type.includes("boolean") || val2.type.includes("parameter")) ) {
             return true
         } 
         else{
@@ -627,6 +696,9 @@ export default class Translate {
             case "variable-boolean":
                 evaluatedUnaryMips += `lw ${register}, ${condition.comparison.value}\n`
                 break;
+            case "variable-parameter":
+                evaluatedUnaryMips += `lw ${register}, ${condition.comparison.value}\n` //all parameters are assumed to be ints unless previously assigned
+                break;    
             case "arrayElement":
                 evaluatedUnaryMips += `#add array element evluation for complex chained\n`
                 break;
@@ -831,6 +903,9 @@ export default class Translate {
                 case "variable-boolean":
                     ifUnaryBoolean += `bne $t0, $0, `
                     break;
+                case "variable-parameter":
+                    ifUnaryBoolean += `bne $t0, $0, `
+                    break;       
                 case "arrayElement":
                     ifUnaryBoolean += `#add branch for unary array elements `
                     break;
@@ -871,6 +946,9 @@ export default class Translate {
                 case "variable-boolean":
                     ifUnaryBoolean += `beq $t0, $0, `
                     break;
+                case "variable-parameter":
+                    ifUnaryBoolean += `beq $t0, $0, `
+                    break;      
                 case "arrayElement":
                     ifUnaryBoolean += `#add branch for unary array elements `
                     break;
@@ -1000,6 +1078,9 @@ export default class Translate {
                 case "variable-boolean":
                     comparandMips += `lw ${register}, ${comparandData.value}\n`
                     break;
+                case "variable-parameter":
+                    comparandMips += `lw ${register}, ${comparandData.value}\n`
+                    break;
                 case "variable":
                     comparandMips += `la ${register}, ${comparandData.value}\n`
                     break;
@@ -1036,7 +1117,7 @@ export default class Translate {
                     break;
                 case "function":
                     //this is a valid case. call the function and store the result(should be at $v0) in register
-                    comparandMips += this.translateFunction(comparand as FunctionToken);
+                    comparandMips += this.translateFunctionCall(comparand as FunctionToken);
                     comparandMips += `addi ${register}, $v0, 0\n`
                     break;
                 case "artihmeticExpression":
@@ -1292,4 +1373,91 @@ export default class Translate {
         return result;
     };
 
+    /** Translates assignments. Stores in register */
+    private _loadValueIntoRegister(assignmentType: Token | DataObject | ArrayElement, register="$t0", initialDeclaration=false) {
+        let assignmentMips = "";
+        if ((assignmentType as DataObject).value !== undefined && !initialDeclaration) {
+            const dataObj = assignmentType as DataObject;
+            switch (dataObj.type) {
+                case "string":
+                        //this variable is being reused later, hence need to load each character one by one into the buffer
+                        // variableAssignmentMips += `#WARNING DUE TO REASSINGING THIS STRING TYPE VARIABLE SOMEWHERE IN YOUR CODE, MIPS HAS TO LOAD EACH CHARACTER OF THE STRING INTO THE LABEL ADDRESS.
+                        // THIS RESULTS IN EXTREMELY LONG MIPS CODE.`
+                        assignmentMips += `la $s0, ${register}\n` + this._storeStringInMips(dataObj.value as string, register)
+                        break;
+                    case "int":
+                        assignmentMips += `li ${register}, ${dataObj.value}\n`
+                        break;
+                    case "boolean":
+                        assignmentMips += `li ${register}, ${dataObj.value ? "1" : "0"}\n`
+                        break;
+                    case "variable-int":
+                        assignmentMips += `lw ${register}, ${dataObj.value}\n`
+                        break;
+                    case "variable-boolean":
+                        assignmentMips += `lw ${register}, ${dataObj.value}\n`
+                        break;
+                    case "variable-artihmeticExpression":
+                        assignmentMips += `lw ${register}, ${dataObj.value}\n`
+                        break;
+                    case "variable-string":
+                        assignmentMips += `la $s0, ${register}\nadd $a0, $s0, $0\nla $a1, ${dataObj.value}\njal strConcat\n`
+                        break;
+                    case "variable-parameter":
+                        assignmentMips += `lw ${register}, ${dataObj.value}\n`
+                        break;
+                    case "arrayElement":
+                        const arrayElem = assignmentType as ArrayElement;
+                        assignmentMips += `li $t0, 4\n${arrayElem.value.arrayRef.allocation === "static" ? "la" : "lw"} $t1, ${arrayElem.value.arrayRef.value}\nadd $t1, $t1, $t0\n`             //get starting address of list
+                        assignmentMips += this._getElementIndex(arrayElem.value.index, "$t2");                                    //get index
+                        assignmentMips += `mult $t2, $t0\nmflo $t2\nadd $t2, $t2, $t1\n`                                          //address of element
+                        assignmentMips += `lw ${register}, ($t2)\n`                                                               //load elem
+                        break;
+                    default:
+                        break;
+            }
+        }
+
+        // else if ((assignmentType as StringConcatenationToken).token === "stringConcatenation") {
+        //     // Token is a string concatenation i.e. s = "hello" + "world"
+        //     const stringConcatenationToken = assignmentType as StringConcatenationToken;
+        //     const variable = register
+        //     const addedStrings = (stringConcatenationToken.properties as StringConcatProperties).addedStrings
+        //     //check if adding variable to itself i.e. x = x + "some stuff"
+        //     assignmentMips += addedStrings[0].type === "variable" && (addedStrings[0].value === variable)
+        //         ? `la $s0, ${variable}\naddi $s0, $s0, ${token.properties.space - 1}\n`
+        //         : `la $s0, ${variable}\n`;
+
+        //     assignmentMips += this.translateStringConcatenation(stringConcatenationToken, variable);
+        // }
+
+        else if((assignmentType as FunctionToken).token === "function") {
+            const functionToken = assignmentType as FunctionToken
+            assignmentMips += this.translateFunctionCall(functionToken)
+            assignmentMips += `addi ${register}, $v0, 0`
+        }
+
+        else if((assignmentType as ArrayToken).token === "array") {
+            const arrayToken = assignmentType as ArrayToken
+            assignmentMips += this.allocateArray(arrayToken, register)
+        }
+
+        else if ((assignmentType as InputToken).token === "input") {
+            // Token is an input()
+            console.log("INPUT", assignmentType)
+            console.log("VARIABLE", register)
+            const inputToken = assignmentType as InputToken;
+            assignmentMips += this.translateInput(inputToken, register);
+        }
+
+        else if ((assignmentType as ArtihmeticExpressionToken).token === "artihmeticExpression") {
+            // Token is an arithmetic expression
+            //console.log("TRAVERSING ARITHMETIC", this._postOrderArithmetic(assignmentType as ArtihmeticExpressionToken));
+            const arithemeticExpression = assignmentType as ArtihmeticExpressionToken
+            assignmentMips += this.translateArithmetic(arithemeticExpression);
+            if(register !== "$t0") assignmentMips += `addi ${register}, $t0, 0\n`;
+        }
+
+        return assignmentMips;
+    }
 }
