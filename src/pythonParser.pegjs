@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-07-27 16:21:54
+//Last modified : 2019-08-04 15:23:36   
 
 {
     const dataStack = [];
@@ -266,7 +266,12 @@
             //updating variables
             if (type === "int" || type === "artihmeticExpression") {
                 if (insideFunctionDeclaration) {
-                    functionVariables = { ...functionVariables, [functionMap[variable]]: {type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable) } }
+                    if (functionMap[variable] in functionParameters) {
+                        functionParameters = { ...functionParameters, [functionMap[variable]]: {type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable) } }
+                    }
+                    else {
+                        functionVariables = { ...functionVariables, [functionMap[variable]]: {type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable) } }
+                    }   
                 }
                 else {
                     variables = { ...variables, [variable]: {type, value, space: calculateMinSpaceNeeded(value ? value : 4, variable) } }
@@ -276,7 +281,12 @@
             }
             if (type === "stringConcatenation" || type === "string") {
                 if (insideFunctionDeclaration) {
-                    functionVariables = { ...functionVariables, [functionMap[variable]]: { type: "string", value, space: calculateSpaceNeeded(value, variable) } }
+                    if (functionMap[variable] in functionParameters) {
+                        functionParameters = { ...functionParameters, [functionMap[variable]]: { type: "string", value, space: calculateSpaceNeeded(value, variable) } }
+                    }
+                    else {
+                        functionVariables = { ...functionVariables, [functionMap[variable]]: { type: "string", value, space: calculateSpaceNeeded(value, variable) } }
+                    }
                 }
                 else {
                     variables = { ...variables, [variable]: { type: "string", value, space: calculateSpaceNeeded(value, variable) } }
@@ -329,10 +339,10 @@
     }
   
     function addVariableToData(str, functionArgs={}) {
-        //switch on str value
         //console.log(str)
         console.log("addVariableToData > FunctionArgs >", functionArgs)
-        if (functionArgs.type === "parameter" && !(str in functionMap)) {
+        console.log("addVariableToData > str vs functionMap >", str, functionMap)
+        if (functionArgs.type === "parameter" && !(getVariable({value:str})) ) {
             //this is in reference to $fp, i.e. first argument of a function should be at 8($fp), second at 12($fp) and so on....
             console.log("addVariableToData>", "parameter register value is>", currentParameterCount * 4)
             functionParameters = { ...functionParameters, [`${currentParameterCount * 4}($fp)`]: {...functionArgs.value, value: `${currentParameterCount * 4}($fp)`, reference: str} }
@@ -341,7 +351,7 @@
             currentParameterCount++;
             return
         }
-        else if (functionArgs.type === "variable" && !(str in functionMap)) {
+        else if (functionArgs.type === "variable" && !(getVariable({value:str})) ) {
             //this is in reference to $fp, i.e. first local variable of a function should be at -4($fp), second at -8($fp) and so on....
             console.log("addVariableToData>", "local variable register value is>", currentLocalVariableCount * -4)
             functionVariables = { ...functionVariables, [`${currentLocalVariableCount * -4}($fp)`]: {...functionArgs.value, value: `${currentLocalVariableCount * -4}($fp)`, reference: str} }
@@ -369,12 +379,37 @@
                 console.log(`Found "${varName}" in => function variables, returning`, functionVariables[functionMap[varName]])
                 return functionVariables[functionMap[varName]]
             }
+            else if(functionParameters[varName]){
+                console.log(`Found "${varName}" in => function parameters, returning`, functionParameters[varName])
+                return functionParameters[varName]
+            }
+            else if(functionVariables[varName]){
+                console.log(`Found "${varName}" in => function variables, returning`, functionVariables[varName])
+                return functionVariables[varName]
+            }
         }
         if(variables[varName]){
                 console.log(`Found "${varName}" in => variables`)
                 return variables[varName]
             }
-        else {error("Variable not declared yet dummy")}
+        //else {error("Variable not declared yet dummy")}
+        else {return 0}
+    }
+
+    function getContextVar(variable) {
+        return insideFunctionDeclaration ? functionMap[variable.value] ? functionMap[variable.value] : variable.value : variable.value
+    }
+
+    function constructContextVar(val) {
+        if (insideFunctionDeclaration){
+            if (functionMap[val.value]) {
+                return {type: `variable-${getVariable(val).type}`, value:functionMap[val.value]}
+            }
+            else {
+                return {...val, type:`variable-${getVariable(val).type}`}
+            }
+        }
+        return {...val, type:`variable-${getVariable(val).type}`}
     }
   
     function getArrayAllocation(arrayRef) {
@@ -582,7 +617,8 @@
     = statement: Statement _ (Comment _)*  { Array.isArray(statement) ? functionStack.push(...statement) : functionStack.push(statement)}
    
   Statement
-    = Function
+    = ReturnStatement
+    / Function
     / FunctionDeclaration
     / IfStatement
     / ArrayOperation
@@ -594,14 +630,20 @@
     / Literal
     / Comment
   
+ ReturnStatement
+  = "return" _ value:Statement _ { return {token:"return", properties: {value, localVariableCount: currentLocalVariableCount-1}}}
+  / "return" _ "None" _ { return {token:"return", properties: {value: null, localVariableCount: currentLocalVariableCount-1}}}
+  / "return" _ { return {token:"return", properties: {value: null, localVariableCount: currentLocalVariableCount-1}}}
+ 
  FunctionDeclaration
-   = "def" _ identifier:Variable _"(" _ parameters:(head:Variable? tail:(_ "," _ param:Variable {return param})* {if (head) {addVariableToData(head.value, {type:"parameter", value:{...head, type:"localVariable"} })}; tail.forEach(elem => addVariableToData(elem.value, {type:"parameter", value:{...elem, type:"localVariable"}})); return head ? [head, ...tail] : null}) _ ")" _ ":" _ "\n"
-       (Indent {insideFunctionDeclaration = true}) head:(Statement) _ tail:(("\n") Samedent statement:Statement _ {return statement})* Dedent _ (_/"\n") _ 
+   = "def" _ identifier:Variable _"(" _ parameters:(head:Variable? tail:(_ "," _ param:Variable {return param})* {if (head) {addVariableToData(head.value, {type:"parameter", value:{...head, type:"parameter"} })}; tail.forEach(elem => addVariableToData(elem.value, {type:"parameter", value:{...elem, type:"parameter"}})); return head ? [head, ...tail] : null}) _ ")" _ ":" _ "\n"
+       (Indent {insideFunctionDeclaration = true}) head:(Statement) _ tail:(("\n") Samedent statement:(Statement) _ {return statement})* Dedent _ (_/"\n") _ 
    {   const body = [head, ...tail]
+	   const returned = body.filter(elem => elem.token === "return")
    	   const localVariableCount = currentLocalVariableCount - 1 
        console.log("before clear>", functionVariables)
    	   functionDeclarationCleanup();
-       return {token:"functionDeclaration", properties: {identifier: identifier.value, parameters, localVariableCount, body} }
+       return {token:"functionDeclaration", properties: {identifier: identifier.value, parameters, localVariableCount, returns: returned, body} }
    }
   
   BinaryExpression
@@ -617,10 +659,13 @@
         addVariableToData(variable.value)
     }
     return assignValueToVariable(variable.value, assignment.type, assignment.value !== undefined ? assignment.value : assignment) === -1 ? 
-    {token: "variableAssignment", properties:{variable:insideFunctionDeclaration ? functionMap[variable.value] : variable.value, space: getVariable(variable).space, value:{...assignment}} }
-  : {token: "variableAssignment", properties:{variable:insideFunctionDeclaration ? functionMap[variable.value] : variable.value, space: getVariable(variable).space, value:{...assignment, initialDeclaration: true}} } }
+    {token: "variableAssignment", properties:{variable: getContextVar(variable), space: getVariable(variable).space, value:{...assignment}} }
+  : {token: "variableAssignment", properties:{variable: getContextVar(variable), space: getVariable(variable).space, value:{...assignment, initialDeclaration: true}} } }
     / variable:(Variable) _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
-        console.log("myVal", value)
+        console.log("variable assignment > value >", value)
+        variable = constructContextVar(variable)
+        console.log("variable assignment > variable >", variable)
+        console.log("myVariable", variable)
         const operator = sep.split("=")[0]
         if(value.type === "artihmeticExpression"){
             const arValue = value
@@ -649,7 +694,7 @@
                     }
                 }
             }
-            else if(value.type.includes("int")){
+            else if(value.type.includes("int") || value.type.includes("variable")){
                 console.log("int >", operator)
                 const intVal = value
                 value = {
@@ -684,13 +729,14 @@
         else {
             addVariableToData(variable.value)
         }
-        return {token: "variableAssignment", properties:{variable:insideFunctionDeclaration ? functionMap[variable.value] : variable.value, space: getVariable(variable).space, value} }
+        return {token: "variableAssignment", properties:{variable: variable.value, space: getVariable(variable).space, value} }
     }
   
   Assignment
    =  _ "=" _ "int" _ "(" _ value:(Input/ArtihmeticExpression) _ ")" {return {...value, type: "int"}}
     / _ "=" _ "str" _ "(" _ value:(Input/ArtihmeticExpression) _ ")" {return {...value, type: "str"}}
     / _ "=" _ 'None' {}
+    / _ "=" _ value:Function {return {...value}}
     / _ "=" _ value:Input {return {...value}}
     / _ "=" _ value:Boolean {return {...value}}
     / _ "=" _ value:Array {return {...value, type:"array"}}
@@ -735,8 +781,8 @@
     // InBuiltFunctions
 
   UserDefinedFunctions
-    = identifier:Variable _ "(" _ parameters:(head:ArtihmeticExpression? tail:(_ "," _ param:ArtihmeticExpression {return param})* { return head ? [head, ...tail] : null}) _ ")" _ {return {identifier: identifier.value, parameters} }
- 
+    = identifier:Variable _ "(" _ parameters:(head:ArtihmeticExpression? tail:(_ "," _ 
+    param:ArtihmeticExpression {return param})* { if(head){const filtered = [head, ...tail].filter(elem => elem.value.substring(0,1) === "-"); return filtered.map((elem,index) => {return {...elem, value: (filtered.length - index) * 4 + `($fp)`} })} else {return null} }) _ ")" _ {return {identifier: identifier.value, parameters} }
 
   IOFunction
     = Print
@@ -903,8 +949,8 @@
    _ "in" _ "range" _ "(" _ start:(Function/ArtihmeticExpression) _ ","? _ end:(Function/ArtihmeticExpression)? _ ","? _ increment:(Function/ArtihmeticExpression)? _")" _ ":" _ "\n"
    Indent head:(Statement) _ tail:("\n" Samedent statement:Statement _ {return statement})* Dedent
    {    const body = setInitialDeclarationFalse([head, ...tail])
-        const relativeVariable = insideFunctionDeclaration ? functionMap[variable.value] : variable.value
-        const left = insideFunctionDeclaration ? {...variable, value: functionMap[variable.value]} : variable
+        const relativeVariable = getContextVar(variable)
+        const left = constructContextVar(variable)
         console.log("Loop > Left Node >", left)
         if (!end) {
           end = start
@@ -974,7 +1020,7 @@
       const currentType = getVariable(arrayRef).type === "artihmeticExpression" ? "int" : getVariable(arrayRef).type
       const type = currentType ? currentType.includes("variable-") ? currentType.slice(currentType.indexOf("variable-")): `variable-${currentType}` : `variable`
       const allocation = getArrayAllocation(arrayRef)
-      arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
+      arrayRef = constructContextVar(arrayRef)
       return {name:"len", parameters:[{...arrayRef, type, allocation}]}
   }
   
@@ -994,12 +1040,12 @@
       }
       //can add check for array length and index here
       const allocation = getArrayAllocation(arrayRef)
-      arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
+      arrayRef = constructContextVar(arrayRef)
       return {arrayRef: {...arrayRef, allocation}, index, value:{...value}}
   }
    / arrayRef:Variable _ "[" _ index:ArtihmeticExpression _ "]" _ sep:("+=" / "-=" / "*=" / "/=") _ value:ArtihmeticExpression  {
       //console.log("myVal", value)
-      arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
+      arrayRef = constructContextVar(arrayRef)
       if(value.type === "artihmeticExpression"){
           const operator = sep.split("=")[0]
           const arValue = value
@@ -1028,7 +1074,7 @@
                   }
               }
           }
-          else if(value.type.includes("int")){
+          else if(value.type.includes("int") || value.type.includes("variable")){
               const intVal = value
               value = {
                   token: "artihmeticExpression",
@@ -1205,7 +1251,7 @@
    = arrayRef:Variable _ "[" _ index:ArtihmeticExpression _"]" _ { 
        let type = getVariable(arrayRef).value.properties ? getVariable(arrayRef).value.properties.type : "int"
        let allocation = getArrayAllocation(arrayRef)
-       arrayRef = insideFunctionDeclaration ? {type: getVariable(arrayRef).type, value:functionMap[arrayRef.value]} : arrayRef
+       arrayRef = constructContextVar(arrayRef)
        return {type:"arrayElement", value: {arrayRef:{...arrayRef, allocation}, index, type}} 
   }
   
@@ -1379,4 +1425,4 @@
   
   ArtihmeticFactor
     = "(" _ expr:ArtihmeticStart _ ")" { return expr; }
-    / ArrayElement / IntegerLiteral / val:Variable {return insideFunctionDeclaration ? {type: `variable-${getVariable(val).type}`, value:functionMap[val.value]} : val} / StringLiteral
+    / ArrayElement / IntegerLiteral / val:Variable {return constructContextVar(val)} / StringLiteral
