@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-08-05 17:06:49 
+//Last modified : 2019-08-06 03:45:34
 
 {
     const dataStack = [];
@@ -638,7 +638,9 @@
  FunctionDeclaration
    = "def" _ identifier:Variable _"(" _ parameters:(head:Variable? tail:(_ "," _ param:Variable {return param})* {if (head) {addVariableToData(head.value, {type:"parameter", value:{...head, type:"parameter"} })}; tail.forEach(elem => addVariableToData(elem.value, {type:"parameter", value:{...elem, type:"parameter"}})); return head ? [head, ...tail] : null}) _ ")" _ ":" _ "\n"
        (Indent {insideFunctionDeclaration = true}) head:(Statement) _ tail:(("\n") Samedent statement:(Statement) _ {return statement})* Dedent _ (_/"\n") _ 
-   {   const body = [head, ...tail]
+   {   const body = Array.isArray(head) ? [...head, ...tail.reduce((acc, val) => acc.concat(val), [])] : [head, ...tail.reduce((acc, val) => acc.concat(val), [])]
+   	   console.log("Function declaration > parsing > got head >", head, "got tail >", tail.reduce((acc, val) => acc.concat(val), []))
+       console.log("Function declaration > parsing > got body>", body)
 	   const returned = body.filter(elem => elem.token === "return")
    	   const localVariableCount = currentLocalVariableCount - 1 
        console.log("before clear>", functionVariables)
@@ -938,7 +940,7 @@
      
    / "for" _ variable:(current:Variable {
         if (insideFunctionDeclaration) {
-            addVariableToData(current.value, {type:"variable", current});
+            addVariableToData(current.value, {type:"variable", value:{...current, type:"int"}});
         }
         else{
             addVariableToData(current.value);
