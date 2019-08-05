@@ -2,7 +2,7 @@
 
 //read on if you want to get a migraine
 
-//Last modified : 2019-08-04 15:23:36   
+//Last modified : 2019-08-05 17:06:49 
 
 {
     const dataStack = [];
@@ -618,9 +618,9 @@
    
   Statement
     = ReturnStatement
+    / IfStatement
     / Function
     / FunctionDeclaration
-    / IfStatement
     / ArrayOperation
     / Loop
     / LoopBreak
@@ -1021,7 +1021,7 @@
       const type = currentType ? currentType.includes("variable-") ? currentType.slice(currentType.indexOf("variable-")): `variable-${currentType}` : `variable`
       const allocation = getArrayAllocation(arrayRef)
       arrayRef = constructContextVar(arrayRef)
-      return {name:"len", parameters:[{...arrayRef, type, allocation}]}
+      return {identifier:"len", parameters:[{...arrayRef, type, allocation}]}
   }
   
   ElementAssignment
