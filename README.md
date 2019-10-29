@@ -24,7 +24,7 @@ Parser written in Javascript that converts *simple* Python source code to MIPS A
           i.e. print((2+3) * (4*(5-6)) + (9-1)) is valid but print((2+3) * (4*(5-6)) + 8) will produce unexpected results. Currently 
           working on this. <br />
       ✔️ Arithmetic operations with simple operator precedence (Muliplication, Division, Addition, Subtraction, Modulo)<br />
-      ✔️ Arithmetic operations between number and variable i.e. x+x, 2\*x are both valid<br />
+      ✔️ Arithmetic operations between number and variable i.e. x+x, 2\*x are both valid<br /><br />
   5. Logical Operators<br />
       ✔️ Basic logical operators: and, or, not<br />
       ✔️ Complex cobmination of multiple operators i.e. if x and y or (z and x)<br />
@@ -53,7 +53,7 @@ Parser written in Javascript that converts *simple* Python source code to MIPS A
 ❗❗ I make no claim that the mips code produced is of high quality. This was just a small project I embarked on to pass the time<br /><br />
 ❗❗ This repository may or may not be updated/refactored in the future depending on my interests so any bug fixes/new functionality may never be added<br /><br />
       
-## Sample ▶️
+## Try it out! 😄
 https://python2mips.herokuapp.com/
 <img src="https://user-images.githubusercontent.com/46664356/67779728-03faf300-faa0-11e9-9e43-aaa49c57fb88.PNG" width="90%"></img> 
 
