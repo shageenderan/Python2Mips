@@ -54,6 +54,6 @@ Parser written in Javascript that converts *simple* Python source code to MIPS A
 ❗❗ This repository may or may not be updated/refactored in the future depending on my interests so any bug fixes/new functionality may never be added<br /><br />
       
 ## Try it out! 😄
-https://python2mips.herokuapp.com/
+https://python2mips.herokuapp.com/ <br />
 <img src="https://user-images.githubusercontent.com/46664356/67779728-03faf300-faa0-11e9-9e43-aaa49c57fb88.PNG" width="90%"></img> 
 
