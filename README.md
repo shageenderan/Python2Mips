@@ -3,9 +3,9 @@ Parser written in Javascript that converts *simple* Python source code to MIPS A
 
 ## Functionality
   1. Literals and Variables
-      ✔️ Integers
-      ✔️ Strings
-      ✔️ Dynamic Variables
+      ✔️ Integers<br />
+      ✔️ Strings<br />
+      ✔️ Dynamic Variables<br />
       ✔️ Variable assignments of multiple types (integers, strings, function results, array elements, arithmetic operations)
       ❌ Floats, Doubles, Long, Binary
   2. String
